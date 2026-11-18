@@ -16,11 +16,12 @@ await p.goto(URL, { waitUntil: 'load' });
 await new Promise(r=>setTimeout(r,1500));
 const CH=60;
 for (let t=0;t<DUR;t+=CH){
- await p.evaluate((ch,ev0,t0)=>{ const K=window.KERES; let lastCap='';
-  K.fast(ch, (t)=>{ const pl=K.pl, A=K.AP; const s=`${(t0+t).toFixed(0)}s ${K.G.mode} [${A.task&&A.task.name}] ${A.act} | ${A.cap} | ${A.sub} | p=${pl.x|0},${pl.y|0} v=${Math.hypot(pl.vx,pl.vy).toFixed(1)} f=${pl.fuel|0} h=${(pl.mods.reduce((a,m)=>a+Math.max(0,m.hp),0)/pl.mods.reduce((a,m)=>a+m.max,0)).toFixed(2)} cr=${pl.credits|0} cg=${JSON.stringify(pl.cargo)} st=${K.G.story} d=${pl.dock?pl.dock.ty+':'+pl.dock.b.name:''}${K.ev?' EVA':''} w=${A.warp} why=${A.why||""} mis=${K.G.missions.map(j=>j.type+":"+(j.good||"")+j.qty+">"+j.to).join(",")} plan=${A.plan?A.plan.st.name:""}`;
+ await p.evaluate((ch,ev0,t0)=>{ const K=window.KERES;
+  K.fast(ch, (t)=>{ const pl=K.pl, e=K.ev, A=K.AP, G=K.G; const o=pl||e;
+   const s=`${(K.W.time).toFixed(0)}s ${G.mode} st=${G.story} tier=${G.tier} cr=${G.cr|0} b=${G.bounty} [${A.task&&A.task.name}] ${A.act} | ${A.cap} | ${A.sub} | ${o?`p=${o.x|0},${o.y|0} alt=${(Math.hypot(o.x,o.y)-3000)|0}`:''} ${pl?`${pl.cls} f=${pl.fuel|0} cg=${JSON.stringify(pl.cargo)} d=${pl.dock?pl.dock.ty+':'+(pl.dock.b?pl.dock.b.name:''):''}`:''}${e?` EVA hide=${e.hide} air=${e.suit|0} sack=${JSON.stringify(e.sack)}`:''} crew=${G.crew.state} ride=${G.ride&&G.ride.kind} w=${A.warp}`;
    console.log('LOG '+s); }, ev0); },CH,EVERY,t);
 }
-const fin = await p.evaluate(()=>JSON.stringify(window.KERES.W.stats)+' events='+JSON.stringify(window.KERES.W.evt&&window.KERES.W.evt.list.map(e=>e.kind))+' feed='+JSON.stringify(window.KERES.W.feed.slice(0,8).map(f=>f.m)));
+const fin = await p.evaluate(()=>JSON.stringify(window.KERES.W.stats)+' cores='+window.KERES.G.cores+' fleet='+window.KERES.G.fleet.map(s=>s.cls).join(','));
 console.log('STATS', fin);
 const lg = await p.evaluate(()=>window.KERES.AP.log.join('\n'));
 console.log('CAPLOG\n'+lg);

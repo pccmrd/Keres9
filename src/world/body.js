@@ -1,4 +1,4 @@
-// ═══ cellular terrain bodies: rocks, stations, hulks ════════════════════
+// ═══ cellular terrain bodies: asteroids, comets, stations, settlements ══
 import { cl, hy, ad, sh } from '../core/util.js';
 import { MAT, FLR, C } from '../core/config.js';
 import { W } from '../core/state.js';
@@ -152,7 +152,9 @@ export function ray(x0, y0, dx, dy, range) {
  * Returns the first blocking body or null.
  */
 export function segBlock(x0, y0, x1, y1, w = 0, skip = null) {
+  // returns the body whose terrain the segment meets FIRST (nearest to x0)
   const L = hy(x1 - x0, y1 - y0) || 1, ux = (x1 - x0) / L, uy = (y1 - y0) / L;
+  let best = null, bs = 1e9;
   for (const b of W.bodies) {
     if (b === skip) continue;
     // closest approach of segment to body centre
@@ -162,35 +164,39 @@ export function segBlock(x0, y0, x1, y1, w = 0, skip = null) {
       // crossing the ring band outside a gap?
       const dA = hy(x0 - b.x, y0 - b.y), dB = hy(x1 - b.x, y1 - b.y);
       if ((dA - b.ring.r) * (dB - b.ring.r) < 0 || Math.abs(hy(b.x - px, b.y - py) - b.ring.r) < w + 7) {
-        for (let s = 0; s <= L; s += 4) {
+        for (let s = 0; s <= L && s < bs; s += 4) {
           const qx = x0 + ux * s, qy = y0 + uy * s, dd = hy(qx - b.x, qy - b.y);
-          if (Math.abs(dd - b.ring.r) < 7 + w && !ringGap(b, Math.atan2(qy - b.y, qx - b.x) - b.a - b.ring.ang)) return b;
+          if (Math.abs(dd - b.ring.r) < 7 + w && !ringGap(b, Math.atan2(qy - b.y, qx - b.x) - b.a - b.ring.ang)) { best = b; bs = s; break; }
         }
       }
     }
-    const s0 = Math.max(0, t - b.rad - w), s1 = Math.min(L, t + b.rad + w), st = b.cs * 0.8;
-    for (let s = s0; s <= s1; s += st) {
+    const s0 = Math.max(0, t - b.rad - w), s1 = Math.min(L, t + b.rad + w, bs), st = b.cs * 0.8;
+    march: for (let s = s0; s <= s1; s += st) {
       const qx = x0 + ux * s, qy = y0 + uy * s;
-      if (w <= 0) { const c = ca(b, qx, qy); if (c && b.sol[c.i]) return b; continue; }
+      if (w <= 0) { const c = ca(b, qx, qy); if (c && b.sol[c.i]) { best = b; bs = s; break; } continue; }
       for (const o of [-w, 0, w]) {
         const c = ca(b, qx - uy * o, qy + ux * o);
-        if (c && b.sol[c.i]) return b;
+        if (c && b.sol[c.i]) { best = b; bs = s; break march; }
       }
     }
   }
-  return null;
+  return best;
 }
 
-/** integrate free-moving bodies (drifting hulks, spinning stations, habitat rings) */
+/** integrate free-moving bodies (inbound hauls, spinning tumblers, departing transfer ships) */
 export function stepBodies(dt) {
   for (const b of W.bodies) {
     if (b.ring) b.ring.ang += b.ring.spin * dt;
+    if (b.mover) b.mover(b, dt);
+    if (b.kin) { if (b.contacts) for (const c of b.contacts) { const w = lw(b, c.lx, c.ly); c.x = w.x; c.y = w.y; } continue; }
     if (!b.vx && !b.vy && !b.va) continue;
     b.x += b.vx * dt; b.y += b.vy * dt; b.a += b.va * dt;
-    if (b.kind === 'hulk') {
-      if (b.x < 300 || b.x > C.W - 300) b.vx += (b.x < 300 ? 1 : -1) * 0.4 * dt;
-      if (b.y < 300 || b.y > C.H - 300) b.vy += (b.y < 300 ? 1 : -1) * 0.4 * dt;
-    }
     if (b.contacts) for (const c of b.contacts) { const w = lw(b, c.lx, c.ly); c.x = w.x; c.y = w.y; }
   }
+}
+
+/** is there solid terrain (any body) at a world point? */
+export function solidAt(x, y) {
+  for (const b of near(x, y, 2)) { const c = ca(b, x, y); if (c && b.sol[c.i]) return b; }
+  return null;
 }

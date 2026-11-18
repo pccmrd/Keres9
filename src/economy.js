@@ -1,30 +1,72 @@
-// ═══ markets, production chains, services, reputation ═══════════════════
-import { cl, fm, hy } from './core/util.js';
-import { GD } from './core/config.js';
+// ═══ markets, services, shipyards, the Catalog Office ═══════════════════
+import { cl, fm, hy, rr } from './core/util.js';
+import { C, GD, CLS } from './core/config.js';
 import { W, G, pl, ev } from './core/state.js';
 import { cw, pR, pF } from './world/body.js';
-import { cadd, cmass, integ, stats } from './ships.js';
+import { cadd, cmass, integ, stats, mkOwned, dock, sprite } from './ships.js';
+import { SITES } from './world/gen.js';
+import { sackN } from './eva.js';
 import { AU } from './audio.js';
-import { story, checkJobs } from './missions.js';
-import { toast, showWin } from './ui.js';
-
-/** inputs consumed per unit produced */
-export const CHAIN = { parts: { fe: 0.6 }, food: { ice: 0.5 }, fuel: { fe: 0.3, ice: 0.4 } };
+import { hooks } from './hooks.js';
 
 export function feed(m, k) { if (!W) return; W.feed.unshift({ t: W.time, m, k: k || '' }); if (W.feed.length > 50) W.feed.pop(); }
 
-export function addRep(f, d) {
-  if (G.rep[f] === undefined) return;
-  const b = G.rep[f]; G.rep[f] = cl(b + d, -100, 100);
-  if (Math.abs(G.rep[f]) >= 30 && Math.abs(b) < 30) toast('REP · ' + f.toUpperCase() + (G.rep[f] > 0 ? ' trusts you' : ' marks you'), G.rep[f] > 0 ? 'good' : 'bad');
+/** what the player can trade from right now: the ship's hold, or the suit's sack */
+export function hold() {
+  if (pl) return { c: pl.cargo, max: pl.cargoMax, used: cmass(pl), n: pl.name, ship: pl };
+  if (ev) return { c: ev.sack, max: Math.floor(C.EVA.sack * (G.sackUp || 1)), used: sackN(ev), n: 'SUIT SACK', ship: null };
+  return null;
+}
+function holdAdd(h, g, q) {
+  if (h.ship) return cadd(h.ship, g, q);
+  const t = Math.min(q, h.max - h.used); if (t > 0) { h.c[g] = (h.c[g] || 0) + t; } return Math.max(0, t);
 }
 
-export function price(st, g) {
-  const e = st.econ[g]; if (!e) return 0;
-  return Math.max(1, Math.round(GD[g].p * cl(Math.pow(e.ref / (e.stock + 6), 0.6), 0.35, 2.6) * (1 - cl(G.rep[st.fac] || 0, -60, 60) / 500)));
+/** departure fever: transfer ships pay a premium in their last minutes */
+const fever = st => (st.transfer && st.transfer.depart > 0 ? 1 + cl(1 - (st.transfer.depart - W.time) / 240, 0, 1) * 0.35 : 1);
+export function price(st, g, sell) {
+  const e = st.econ && st.econ[g]; if (!e) return 0;
+  const p = GD[g].p * e.mul * cl(Math.pow(e.ref / (e.stock + 6), 0.5), 0.45, 2.4) * fever(st);
+  return Math.max(1, Math.round(sell ? p * 0.88 : p));
 }
 
-/** station crews weld breaches shut from the blueprint, a few cells per economy tick */
+export function trade(st, g, n, buy) {
+  const h = hold(); if (!h) return;
+  const e = st.econ[g];
+  if (buy) {
+    let k = 0;
+    while (k < n && G.cr >= price(st, g) && e.stock >= 1) { const p = price(st, g); if (!holdAdd(h, g, 1)) break; G.cr -= p; e.stock -= 1; k++; }
+    if (k) { AU.blip(); hooks.toast('BOUGHT ' + k + ' ' + GD[g].n); }
+  } else {
+    let k = 0, earned = 0;
+    while (k < n && (h.c[g] || 0) > 0) { const p = price(st, g, true); h.c[g]--; G.cr += p; earned += p; e.stock += 1; k++; }
+    if (!h.c[g]) delete h.c[g];
+    if (h.ship) stats(h.ship);
+    if (k) {
+      AU.cash(); W.stats.earned += earned; W.stats.delivered += k;
+      hooks.toast('SOLD ' + k + ' ' + GD[g].n + ' · +' + fm(earned) + '₡', 'good');
+      feed('You sold ' + k + ' ' + GD[g].n + ' to ' + st.name + '.');
+      hooks.delivered && hooks.delivered(st, g, k, earned);
+    }
+  }
+}
+
+export function econTick(dt) {
+  G._e = (G._e || 0) + dt; if (G._e < 5) return;
+  const step = G._e / 60; G._e = 0;
+  for (const st of W.stations) {
+    if (!st.econ) continue;
+    for (const g in st.econ) {
+      const q = st.econ[g];
+      if (q.cons > 0) q.stock = Math.max(0, q.stock - q.cons * step);
+      if (q.prod > 0) q.stock = Math.min(q.ref * 3, q.stock + q.prod * step);
+      if (q.ref > 0 && q.stock < q.ref * 0.2) q.stock += q.ref * 0.05 * step;
+      q.hist.push(price(st, g)); if (q.hist.length > 26) q.hist.shift();
+    }
+  }
+  for (const st of W.stations) patchStation(st, 3);
+}
+/** station crews weld breaches shut from the blueprint */
 export function patchStation(st, n) {
   if (!st.sol0 || !st.cut.length) return;
   for (let k = 0; k < n && st.cut.length; k++) {
@@ -38,113 +80,65 @@ export function patchStation(st, n) {
   }
 }
 
-export function econTick(dt) {
-  G._e += dt; if (G._e < 5) return;
-  const step = G._e / 60; G._e = 0;
-  for (const st of W.stations) {
-    if (st.dead) continue;
-    const e = st.econ;
-    for (const g in e) if (e[g].cons > 0) e[g].stock = Math.max(0, e[g].stock - e[g].cons * (e[g].cmod || 1) * step);
-    for (const g in e) {
-      const q = e[g]; if (q.prod <= 0) continue;
-      const pr = q.prod * (q.mod === undefined ? 1 : q.mod), need = CHAIN[g] || {};
-      if (pr <= 0) continue;
-      let ok = true;
-      for (const i in need) if ((e[i] ? e[i].stock : 0) < need[i] * pr * step) ok = false;
-      if (!ok) continue;
-      for (const i in need) e[i].stock -= need[i] * pr * step;
-      q.stock = Math.min(400, q.stock + pr * step);
+// ─── services ────────────────────────────────────────────────────────────
+const UPG = { eng: ['ENGINE TUNE', 'thrust +16%', 900], cargo: ['CARGO RACKS', 'hold +12', 700], laser: ['LASER FOCUS', 'cut rate & range', 800], fuel: ['AUX TANKS', 'propellant +35', 600], scan: ['ARRAY GAIN', 'scanner range +160 m', 650] };
+const SUIT = { airUp: ['SUIT · BIG TANK', 'air +60%', 260, 1.6], sackUp: ['SUIT · DEEP SACK', 'sack +75%', 320, 1.75], suitUp: ['SUIT · HOT CUTTER', 'hand cutter +70%', 380, 1.7] };
+/** a docked owned ship at this station (for services) */
+export function shipAt(st) { return G.fleet.find(s => !s.dead && s.dock && s.dock.b === st) || null; }
+export function services(st) {
+  const L = [], s = pl && pl.dock && pl.dock.b === st ? pl : shipAt(st);
+  if (s) {
+    const need = Math.ceil(s.fuelMax - s.fuel), fp = price(st, 'fuel') || 6;
+    L.push({ l: 'REFUEL ' + s.name, d: need + ' units propellant @ ' + fp + '₡', c: need * fp, min: Math.min(need * fp, fp), ok: need > 0, f: () => { const k = Math.min(need, Math.floor(G.cr / fp)); s.fuel += k; G.cr -= k * fp; if (st.econ.fuel) st.econ.fuel.stock = Math.max(0, st.econ.fuel.stock - k); AU.blip(); } });
+    let dmg = 0; for (const m of s.mods) dmg += m.max - Math.max(0, m.hp);
+    const rc = Math.ceil(dmg * 2.2);
+    L.push({ l: 'REPAIR ' + s.name, d: 'hull ' + Math.round(integ(s) * 100) + '% → 100%', c: rc, ok: dmg > 0, f: () => { for (const m of s.mods) { m.hp = m.max; m.dead = false; } G.cr -= rc; stats(s); s.dirty = true; AU.thunk(); } });
+    if (!st.transfer) for (const k in UPG) {
+      const lv = s.upg[k] || 0, [n, d, c0] = UPG[k], c = Math.round(c0 * (1 + lv * 0.8));
+      if (k === 'eng' && s.cls === 'wren' && lv >= 1) continue;   // the WREN frame won't take more thrust
+      if (lv < 3) L.push({ l: n + ' · L' + (lv + 1), d: d + ' (' + s.name + ')', c, ok: true, f: () => { s.upg[k] = lv + 1; G.cr -= c; const f = s.fuel; stats(s); s.fuel = Math.min(s.fuelMax, f); AU.chime(); } });
     }
-    // a little outside supply keeps the sector from starving
-    for (const g in e) { const q = e[g]; if (q.ref > 0 && q.stock < q.ref * 0.15) q.stock += q.ref * 0.01 * step * 6; }
-    for (const g in e) { const q = e[g]; q.hist.push(price(st, g)); if (q.hist.length > 26) q.hist.shift(); }
-    if (!st.dead) patchStation(st, 3);
-    if (st.cut.length > 70 && !st.dead) { st.dead = true; feed(st.name + ' spine severed — services offline', 'bad'); toast(st.name + ' HAS GONE DARK', 'bad'); }
   }
+  if (st === SITES.sel || st === SITES.depot) for (const k in SUIT) {
+    const [n, d, c, v] = SUIT[k];
+    if (!G[k] || G[k] < v) L.push({ l: n, d, c, ok: true, f: () => { G[k] = v; G.cr -= c; AU.chime(); } });
+  }
+  if (!L.length) L.push({ l: 'NO SERVICES', d: 'bring a hull here to refuel, repair or refit', c: 0, ok: false, f: () => {} });
+  return L;
 }
 
-export function trade(st, g, q, buy) {
-  const p = price(st, g), e = st.econ[g];
-  if (buy) {
-    const want = Math.min(q, Math.floor(pl.credits / p), e.stock | 0);
-    if (want <= 0) { AU.warn(); toast(e.stock < 1 ? 'No stock' : 'Not enough credits', 'warn'); return 0; }
-    const t = cadd(pl, g, want);
-    if (t <= 0) { AU.warn(); toast('Hold full', 'warn'); return 0; }
-    pl.credits -= t * p; e.stock -= t; AU.cash(); toast('BOUGHT ' + t + ' ' + GD[g].n + ' · −' + fm(t * p) + '₡');
-    checkJobs(st);
-    return t;
-  }
-  const s = Math.min(q, pl.cargo[g] || 0);
-  if (s <= 0) { AU.warn(); return 0; }
-  pl.cargo[g] -= s; if (pl.cargo[g] <= 0) delete pl.cargo[g];
-  e.stock += s; pl.credits += s * p; W.stats.earned += s * p; stats(pl);
-  if (GD[g].bad && st.fac === 'coop' && Math.random() < 0.3) {
-    const f = 200 + s * 20; pl.credits = Math.max(0, pl.credits - f); addRep('coop', -8);
-    toast('CONTRABAND SCAN · fined ' + fm(f) + '₡', 'bad'); feed('Customs flagged stim cargo on KITE.', 'bad');
-  }
-  AU.cash(); toast('SOLD ' + s + ' ' + GD[g].n + ' · +' + fm(s * p) + '₡', 'good');
-  story('sell', { st, g, q: s });
-  checkJobs(st);
+/** ships for sale at this yard */
+export function yard(st) {
+  return (st.yard || []).map(cls => {
+    const K = CLS[cls], owned = G.fleet.some(s => !s.dead && s.cls === cls);
+    return { cls, n: K.n, c: K.price, owned, d: cls === 'wren' ? 'Orbit-only tug. Weak engine (cannot lift off the surface), mining laser, array, 26 hold. Berths at SELENE HIGH.' : 'Surface-to-orbit lander. Triple engine, landing gear, 44 hold, laser & array. Sits on Shackleton PAD 1 — fly it up the well yourself.' };
+  });
+}
+export function buyShip(st, cls) {
+  const K = CLS[cls];
+  if (G.cr < K.price) { hooks.toast('Not enough credits', 'bad'); return null; }
+  let P = null;
+  if (cls === 'hare') P = { p: st.pads.find(q => !q.occ) || st.pads[0], ty: 'pad' };
+  else P = { p: st.ports.find(q => q.berth && !q.occ) || st.ports.find(q => !q.occ), ty: 'port' };
+  if (!P.p || P.p.occ) { hooks.toast('No free berth — clear the pad first', 'bad'); return null; }
+  G.cr -= K.price;
+  const s = mkOwned(cls, st.x, st.y);
+  dock(s, st, P.p, P.ty, true); sprite(s);
+  G.fleet.push(s); G.tier = Math.max(G.tier, cls === 'wren' ? 2 : 3);
+  AU.chime(); AU.cash();
+  hooks.toast((cls === 'wren' ? 'WREN' : 'HARE') + ' IS YOURS · ' + (P.ty === 'pad' ? 'on ' + P.p.name : 'clamped at a berth') + ' — BOARD from the yard or float over and press F', 'good');
+  feed('A new ' + K.n + ' changed hands at ' + st.name + '.', 'good');
+  hooks.bought && hooks.bought(s);
   return s;
 }
 
-export function npcTrade(a, st, g, q, buy) {
-  const e = st.econ[g], p = price(st, g);
-  if (buy) { const t = Math.min(q, Math.floor(a.credits / p), e.stock | 0); if (t <= 0) return; a.cargo[g] = (a.cargo[g] || 0) + t; a.credits -= t * p; e.stock -= t; }
-  else { const s = Math.min(q, a.cargo[g] || 0); if (s <= 0) return; a.cargo[g] -= s; if (a.cargo[g] <= 0) delete a.cargo[g]; e.stock += s; a.credits += s * p; }
+// ─── the Catalog Office ─────────────────────────────────────────────────
+export function bountyFor(b) { return Math.round(25 + b.R * 1.6 + (b.type === 'comet' ? 40 : b.type === 'metal' ? 30 : 0) + b.cham.filter(q => !q.open).length * 12); }
+/** collect pending survey bounties (Catalog Office terminal, or any docking at SELENE HIGH) */
+export function collectBounty() {
+  if (!G.bounty) return 0;
+  const v = G.bounty; G.cr += v; W.stats.earned += v; G.bounty = 0; AU.cash();
+  hooks.toast('CATALOG OFFICE pays ' + fm(v) + '₡ in survey bounties', 'good');
+  return v;
 }
-export const bestBuy = g => { let b = null, p = 1e9; for (const s of W.stations) { if (s.dead || s.econ[g].stock < 8) continue; const q = price(s, g); if (q < p) { p = q; b = s; } } return b; };
-export const bestSell = (g, not) => { let b = null, p = 0; for (const s of W.stations) { if (s.dead || s === not) continue; const q = price(s, g); if (q > p) { p = q; b = s; } } return b; };
-export function freePort(st, berth) {
-  const L = st.ports.filter(p => !p.occ && (!berth || p.berth)), A = st.ports.filter(p => !p.occ), U = L.length ? L : A;
-  return U.length ? U[(Math.random() * U.length) | 0] : null;
-}
-
-export function payDebt(n) {
-  const p = Math.min(n, pl.credits, G.debt);
-  if (p <= 0) { AU.warn(); return; }
-  pl.credits -= p; G.debt -= p; AU.cash();
-  toast('LEDGER PAYMENT · −' + fm(p) + '₡ · ' + fm(G.debt) + '₡ left', 'good'); feed('Ledger payment: ' + fm(p) + '₡', 'good');
-  story('debt', {});
-  if (G.debt <= 0 && !G.win) { G.win = true; showWin(); }
-}
-export function repairCost() { let m = 0; for (const q of pl.mods) m += q.max - Math.max(0, q.hp); return Math.ceil(m * 3.2); }
-
-export const UPGRADES = [['eng', 'ENGINE CORE', '+28% main thrust', 900], ['cargo', 'CARGO RACKS', '+12 hold', 700], ['laser', 'MINING LASER', '+range & cut rate', 850],
-  ['gun', 'CANNON FEED', '+4 damage', 1000], ['armor', 'HULL PLATING', '+25% armour', 800], ['fuel', 'TANK BLADDER', '+30 mass', 650], ['scan', 'ARRAY DISH', '+140m range', 750]];
-export const upgCost = (k, lv) => Math.round(UPGRADES.find(u => u[0] === k)[3] * Math.pow(1.75, lv));
-
-/** service list for the SERVICES tab — each entry {l,d,c,ok,f,k} */
-export function services(st) {
-  const L = [], need = pl.fuelMax - pl.fuel, fp = cl(price(st, 'fuel'), 3, 9); // Keres Mutual subsidises pilots' reaction mass
-  L.push({ k: 'fuel', l: 'REACTION MASS', d: need.toFixed(0) + ' units to full · ' + fp + '₡/unit', c: Math.ceil(need * fp), min: fp, ok: need > 1,
-    f: () => {
-      const q = Math.min(need, Math.floor(pl.credits / fp));
-      if (q <= 0) { AU.warn(); toast('Not enough credits', 'warn'); return; }
-      pl.credits -= q * fp; pl.fuel = Math.min(pl.fuelMax, pl.fuel + q); st.econ.fuel.stock = Math.max(0, st.econ.fuel.stock - q); AU.cash(); toast('REFUELLED +' + q.toFixed(0), 'good');
-    } });
-  const rc = repairCost();
-  L.push({ k: 'repair', l: 'HULL & MODULE REPAIR', d: Math.round(integ(pl) * 100) + '% integrity · restores every module', c: rc, ok: rc > 0 && st.svc.repair,
-    f: () => {
-      if (pl.credits < rc) { AU.warn(); toast('Not enough credits', 'warn'); return; }
-      pl.credits -= rc; for (const m of pl.mods) { m.hp = m.max; m.dead = false; }
-      pl.dirty = true; stats(pl); AU.chime(); toast('HULL RESTORED', 'good');
-    } });
-  if (st.svc.upg) for (const [k, l, d] of UPGRADES) {
-    const lv = pl.upg[k] || 0, c = upgCost(k, lv);
-    L.push({ k: 'upg:' + k, l: l + ' · MK' + (lv + 1), d: d + (lv >= 3 ? ' · MAX' : ''), c, ok: lv < 3,
-      f: () => {
-        if (pl.credits < c) { AU.warn(); toast('Not enough credits', 'warn'); return; }
-        pl.credits -= c; pl.upg[k] = lv + 1;
-        if (k === 'armor') for (const m of pl.mods) { m.max = Math.round(m.max * 1.25); m.hp = m.max; }
-        stats(pl); pl.dirty = true; AU.chime(); toast(l + ' INSTALLED · MK' + (lv + 1), 'good');
-      } });
-  }
-  if (st.svc.debt) {
-    L.push({ k: 'debt', l: 'KERES MUTUAL LEDGER', d: fm(G.debt) + '₡ outstanding · pay 5,000₡', c: Math.min(5000, G.debt), ok: G.debt > 0, f: () => payDebt(5000) });
-    L.push({ k: 'debtAll', l: 'CLEAR LEDGER IN FULL', d: 'own your hull outright', c: G.debt, ok: G.debt > 0 && pl.credits >= G.debt, f: () => payDebt(G.debt) });
-  }
-  return L;
-}
-export const cargoMass = cmass;
-export const dist = (a, b) => hy(a.x - b.x, a.y - b.y);
+export { rr };

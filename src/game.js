@@ -3,188 +3,190 @@ import { $, cl, hy, fm } from './core/util.js';
 import { C, GD } from './core/config.js';
 import { W, G, pl, ev, AG, cam, PC, setG, setPl, setEv, setAG } from './core/state.js';
 import { cut, cw } from './world/body.js';
-import { genWorld, spawnHulk } from './world/gen.js';
-import { mkShip, mkPlayer, stats, dock, anchor, undock, cmass } from './ships.js';
-import { mkAgent, initAgents } from './agents.js';
-import { newGame, mkJobs, accept } from './missions.js';
-import { price, trade, addRep, feed, freePort } from './economy.js';
-import { talk } from './social.js';
+import { genWorld, spawnRock, replaceTransfer, SITES } from './world/gen.js';
+import { mkOwned, stats, dock, anchor, undock, settle, cmass, sprite } from './ships.js';
+import { mkSuit, airlockSpot, sackN, enterEVA } from './eva.js';
+import { liftInit } from './lift.js';
+import { crewInit, boardShift } from './crew.js';
+import { initAgents } from './agents.js';
+import { eventsInit } from './events.js';
+import { newGame, mkJobs, accept, drop, story, storyObj } from './missions.js';
+import { price, trade, feed, buyShip, collectBounty, hold } from './economy.js';
 import { defZoom, setNav } from './player.js';
 import { IN } from './input.js';
 import { AU } from './audio.js';
-import { toast, mode, openStation, closeStation, closeDialog, confirmBox, panel, hudDOM, statGrid } from './ui.js';
+import { toast, mode, openStation, closeStation, closeDialog, confirmBox, panel, hudDOM, statGrid, setSaver } from './ui.js';
 import { V, resize, chart } from './render/render.js';
 import { AP, apSet } from './ai/pilot.js';
-import { NAV } from './ai/nav.js';
 
-const KEY = 'keres9_v3';
-const bkey = b => (b.kind === 'rock' ? 'r' : b.kind === 'station' ? 's' : 'h') + b.name;
+const KEY = 'keres9_moon2035_v1';
 
-function dockHome(p0) {
-  const A = W.stations[0];
-  const p = A.ports.find(q => !q.berth && !q.occ) || freePort(A);
-  if (p) dock(p0, A, p, 'port', true);
+// ─── world assembly ──────────────────────────────────────────────────────
+function build(seed) {
+  genWorld(seed); setAG([]); setEv(null); setPl(null); AU.air(false); AU.mine(false);
+  liftInit();
+  PC.tgt = null; PC.scan = false; PC.match = false; PC.assist = null; PC.hints.clear(); PC.lock = 0; PC.sas = 0;
+  PC.ctx = { l: '—', f: null, ok: false }; PC.alt = null;
+  $('scan').classList.remove('on'); $('scanB').classList.remove('act'); $('match').classList.remove('act'); $('gear').classList.remove('act');
+  $('toasts').innerHTML = ''; closeStation(); closeDialog(); IN.thr = 0; IN.thrUI(0); IN.edge.length = 0; IN.taps.length = 0; resize();
+  cam.aux = null;
+}
+/** the player wakes up in HAB 14 */
+function wakeAtHome() {
+  const h = SITES.hab, p = airlockSpot(h, h.x, h.y);
+  setEv(mkSuit(p.x, p.y)); ev.a = Math.atan2(h.y, h.x) + Math.PI / 2;
+  cam.x = ev.x; cam.y = ev.y; cam.rot = Math.atan2(ev.y, ev.x) + Math.PI / 2; cam.snap = true;
+}
+function freshWorld(seed) {
+  build(seed);
+  const s = G ? G.sound : true;
+  setG(newGame()); G.sound = s; syncSound();
+  crewInit(); initAgents(); eventsInit();
+  for (const st of W.stations) mkJobs(st);
+  wakeAtHome();
 }
 
 // ─── persistence ─────────────────────────────────────────────────────────
+const bkey = b => (b.kind === 'rock' ? 'r' + b.uid : 's' + b.name);
+function shipSave(s) {
+  const d = s.dock;
+  return { cls: s.cls, x: s.x, y: s.y, a: s.a, vx: s.vx, vy: s.vy, fuel: s.fuel, cargo: s.cargo, upg: s.upg, gear: s.gear, isPl: s.isPl, mods: s.mods.map(m => [m.hp, m.dead ? 1 : 0]),
+    d: d ? { ty: d.ty, b: d.b ? bkey(d.b) : null, cx: d.cx, cy: d.cy, x: d.x, y: d.y, a: d.a, pi: d.p ? (d.ty === 'pad' ? d.b.pads.indexOf(d.p) : d.b.ports.indexOf(d.p)) : -1 } : null };
+}
 export function save() {
-  if (!W || !pl || !G || AP.demo || G.mode === 'title') return;
+  if (!W || !G || AP.demo || G.mode === 'title' || G.mode === 'dead') return;
   try {
     const terr = {}; let n = 0;
     for (const b of W.bodies) {
-      if (!b.cut.length) continue;
-      const u = [...new Set(b.cut)], room = 9000 - n; if (room <= 0) break;
+      if (!b.cut.length || b.kind === 'station') continue;
+      const u = [...new Set(b.cut)], room = 12000 - n; if (room <= 0) break;
       const a = u.slice(0, room); n += a.length; terr[bkey(b)] = a;
     }
-    const d = pl.dock ? { ty: pl.dock.ty, b: pl.dock.b.name, cx: pl.dock.cx, cy: pl.dock.cy,
-      pi: pl.dock.p ? (pl.dock.ty === 'pad' ? pl.dock.b.pads.indexOf(pl.dock.p) : pl.dock.b.ports.indexOf(pl.dock.p)) : -1 } : null;
+    const where = G.ride || (ev && ev.hide) ? null : ev ? { x: ev.x, y: ev.y, suit: ev.suit, sack: ev.sack } : null;
     localStorage.setItem(KEY, JSON.stringify({
-      v: 3, seed: W.seed, time: W.time, sound: G.sound, nav: W.nav, terr, extra: W.extra,
-      g: { debt: G.debt, rep: G.rep, story: G.story, prog: G.prog, jobs: G.jobs, missions: G.missions, shift: G.shift, clock: G.clock, win: G.win, stats: W.stats, jseed: G.jseed },
-      pl: { x: pl.x, y: pl.y, a: pl.a, vx: pl.vx, vy: pl.vy, fuel: pl.fuel, cargo: pl.cargo, credits: pl.credits, upg: pl.upg, gear: pl.gear, d, mods: pl.mods.map(m => [m.hp, m.dead ? 1 : 0, m.max]) },
-      econ: W.stations.map(s => ({ n: s.name, dead: s.dead, e: Object.fromEntries(Object.entries(s.econ).map(([g, q]) => [g, q.stock])) })),
-      ag: AG.filter(a => a.alive).map(a => ({ id: a.id, name: a.name, role: a.role, fac: a.fac, credits: a.credits, cargo: a.cargo, grudge: a.grudge, favor: a.favor, kills: a.kills || 0,
-        home: a.home ? a.home.name : null, ship: a.ship && !a.ship.dead ? { x: a.ship.x, y: a.ship.y, a: a.ship.a, role: a.ship.role, fuel: a.ship.fuel } : null })),
+      v: 1, seed: W.seed, time: W.time, sound: G.sound, nav: W.nav, terr, extra: W.extra,
+      g: { cr: G.cr, tier: G.tier, story: G.story, prog: G.prog, jobs: G.jobs, missions: G.missions, bounty: G.bounty, win: G.win, jseed: G.jseed, airUp: G.airUp, sackUp: G.sackUp, suitUp: G.suitUp, cores: G.cores, shifts: G.crew ? G.crew.shifts : 0 },
+      stats: W.stats, ev: where, fleet: G.fleet.filter(s => !s.dead).map(shipSave),
+      econ: W.stations.filter(s => s.econ).map(s => ({ n: s.name, e: Object.fromEntries(Object.entries(s.econ).map(([g, q]) => [g, q.stock])) })),
+      cat: W.rocks.filter(b => b.cat).map(b => b.uid),
       ct: W.contacts.map((c, i) => (c.done ? i : -1)).filter(i => i >= 0),
+      tr: ['ares', 'gaia'].map(k => ({ k, gen: SITES[k].transfer.gen, dep: SITES[k].transfer.depart - W.time })),
       feed: W.feed.slice(0, 20),
     }));
   } catch (e) { /* storage full / private mode */ }
 }
 export function readSave() { try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 
-function build(seed) {
-  genWorld(seed); setAG([]); setEv(null); AU.air(false); AU.mine(false);
-  PC.tgt = null; PC.scan = false; PC.match = false; PC.breach = null; PC.assist = null; PC.hints.clear(); PC.lock = 0;
-  PC.ctx = { l: '—', f: null, ok: false }; PC.alt = null;
-  $('scan').classList.remove('on'); $('scanB').classList.remove('act'); $('match').classList.remove('act'); $('gear').classList.remove('act');
-  $('toasts').innerHTML = ''; closeStation(); closeDialog(); IN.thr = 0; IN.thrUI(0); IN.edge.length = 0; IN.taps.length = 0; resize();
-  cam.aux = null;
-}
-
-function freshSector(seed) {
-  build(seed);
-  const s = G ? G.sound : true;
-  setG(newGame()); G.sound = s; syncSound();
-  const A = W.stations[0];
-  setPl(mkPlayer(A.x - 460, A.y + 14)); dockHome(pl);
-  initAgents();
-  for (const st of W.stations) mkJobs(st);
-}
-
-export function newRun() {
-  try { localStorage.removeItem(KEY); } catch (e) { /* */ }
-  apSet(false, false);
-  freshSector((Math.random() * 1e9) | 0);
-  startPlay();
-}
-
-/** watch-only showcase: fresh unsaved sector, AI pilot at the stick */
-export function startDemo() {
-  freshSector((Math.random() * 1e9) | 0);
-  AP.demo = true;
-  startPlay(true);
-  W.evt = { next: 30, list: [], up: 6, last: null };
-  apSet(true, true);
-  toast('AI PILOT DEMO · press P or tap AI to take the stick — demo sectors are never saved', 'warn');
-}
-
-export function startPlay(quiet) {
-  mode('play'); cam.tz = defZoom(); cam.x = pl.x; cam.y = pl.y;
-  if (pl.dock) undock(pl);
-  if (quiet) return;
-  toast('SHIFT START · left stick RCS, right stick spin, right rail throttle', 'warn');
-  setTimeout(() => toast('The port is right there. MATCH ΔV, align the nose, four green gates, then CLAMP.'), 1700);
-  setTimeout(() => toast('Press P any time to hand the stick to the AI pilot.'), 3800);
-  save();
-}
-
 export function load() {
   const d = readSave(); if (!d) { newRun(); return; }
   try {
     apSet(false, false);
     build(d.seed); setG(newGame()); G.sound = d.sound !== false; syncSound();
-    Object.assign(G, d.g); W.stats = { ...W.stats, ...(d.g.stats || {}) }; W.time = d.time || 0; W.nav = d.nav || null; W.feed = d.feed || [];
-    for (const x of d.extra || []) { W.extra = W.extra.filter(e => e !== x); spawnHulk(x.seed, x.x, x.y, x.name, x.vx, x.vy); }
-    for (const k in d.terr) {
-      const b = W.bodies.find(x => bkey(x) === k); if (!b) continue;
-      for (const i of d.terr[k]) if (b.sol[i]) cut(b, i % b.gw, (i / b.gw) | 0, 1e6, true);
-    }
-    for (const es of d.econ) {
-      const st = W.stations.find(s => s.name === es.n); if (!st) continue;
-      st.dead = es.dead; for (const g in es.e) if (st.econ[g]) st.econ[g].stock = es.e[g];
-    }
-    setPl(mkPlayer(d.pl.x, d.pl.y));
-    Object.assign(pl, { a: d.pl.a, vx: d.pl.vx, vy: d.pl.vy, fuel: d.pl.fuel, cargo: d.pl.cargo || {}, credits: d.pl.credits, upg: d.pl.upg || pl.upg, gear: !!d.pl.gear });
-    (d.pl.mods || []).forEach((m, i) => { if (pl.mods[i]) { pl.mods[i].hp = m[0]; pl.mods[i].dead = !!m[1]; if (m[2]) pl.mods[i].max = m[2]; } });
-    stats(pl); pl.dirty = true;
-    initAgents();
-    const by = new Map(AG.map(a => [a.id, a]));
-    for (const sa of d.ag || []) {
-      let a = by.get(sa.id);
-      if (!a) {
-        if (!sa.ship && sa.role !== 'hand') continue;
-        a = mkAgent(() => Math.random(), sa.ship ? sa.ship.role : 'trader', sa.fac, sa.ship ? sa.ship.x : W.stations[0].x, sa.ship ? sa.ship.y : W.stations[0].y, sa.id, sa.name);
-        if (!sa.ship && a.ship) { a.ship.dead = true; W.ships = W.ships.filter(s => s !== a.ship); a.ship = null; }
+    crewInit(); initAgents(); eventsInit();
+    const g = d.g; Object.assign(G, { cr: g.cr, tier: g.tier, story: g.story, prog: g.prog || {}, jobs: g.jobs || {}, missions: g.missions || [], bounty: g.bounty || 0, win: g.win, jseed: g.jseed || 1, airUp: g.airUp || 1, sackUp: g.sackUp || 1, suitUp: g.suitUp || 1, cores: g.cores || 0 });
+    G.crew.shifts = g.shifts || 0;
+    W.stats = { ...W.stats, ...(d.stats || {}) }; W.time = d.time || 0; W.nav = d.nav || null; W.feed = d.feed || [];
+    W.extra = [];
+    for (const x of d.extra || []) { const b = spawnRock(x.seed, x.x, x.y, x.R, x.type); b.fresh = false; }
+    for (const t of d.tr || []) {
+      let st = SITES[t.k];
+      if (t.gen > 1) {
+        const nb = replaceTransfer(st, t.gen); W.bodies = W.bodies.map(b => (b === st ? nb : b)); W.stations = W.stations.map(b => (b === st ? nb : b)); SITES[t.k] = nb; st = nb;
       }
-      Object.assign(a, { name: sa.name, role: sa.role, fac: sa.fac, credits: sa.credits, cargo: sa.cargo || {}, grudge: sa.grudge, favor: sa.favor, kills: sa.kills });
-      a.home = W.stations.find(s => s.name === sa.home) || null;
-      if (sa.ship && a.ship) { Object.assign(a.ship, { x: sa.ship.x, y: sa.ship.y, a: sa.ship.a, fuel: sa.ship.fuel }); a.state = 'idle'; }
-      else if (!sa.ship) { if (a.ship) { a.ship.dead = true; W.ships = W.ships.filter(s => s !== a.ship); } a.ship = null; a.state = sa.role === 'hand' ? 'hand' : 'stranded'; }
+      st.transfer.depart = W.time + Math.max(60, t.dep);
     }
-    for (const a of AG) if (!(d.ag || []).some(sa => sa.id === a.id) && a.role !== 'fence' && a.ship) { a.ship.dead = true; W.ships = W.ships.filter(s => s !== a.ship); a.ship = null; a.alive = false; }
+    const byKey = k => W.bodies.find(b => bkey(b) === k);
+    for (const k in d.terr) { const b = byKey(k); if (!b) continue; for (const i of d.terr[k]) if (b.sol[i]) cut(b, i % b.gw, (i / b.gw) | 0, 1e6, true); }
+    for (const es of d.econ || []) { const st = W.stations.find(s => s.name === es.n); if (!st) continue; for (const q in es.e) if (st.econ[q]) st.econ[q].stock = es.e[q]; }
+    for (const uid of d.cat || []) { const b = W.rocks.find(r => r.uid === uid); if (b) { b.cat = 1; b.catT = 0; } }
     for (const i of d.ct || []) {
       const c = W.contacts[i]; if (!c) continue; c.done = true;
-      if (c.kind === 'vein') c.b.veinOn = true; else if (c.kind === 'cache') c.b.cacheOn = true;
+      if (c.kind === 'vein') c.b.veinOn = true;
       else if (c.b.cham) for (const ch of c.b.cham) { const w = cw(c.b, ch.cx, ch.cy); if (hy(w.x - c.x, w.y - c.y) < c.b.cs * 3) ch.disc = true; }
     }
-    if (d.pl.d) {
-      const b = W.bodies.find(x => x.name === d.pl.d.b);
-      if (b) {
-        if (d.pl.d.ty === 'anchor') anchor(pl, b, d.pl.d.cx, d.pl.d.cy);
-        else { const arr = d.pl.d.ty === 'pad' ? b.pads : b.ports, p = arr && arr[d.pl.d.pi]; if (p && !p.occ) dock(pl, b, p, d.pl.d.ty, true); }
+    if (G.story >= 9 && W.orphan) W.orphan.hidden = false;
+    let flying = null;
+    for (const fs of d.fleet || []) {
+      const s = mkOwned(fs.cls, fs.x, fs.y);
+      Object.assign(s, { a: fs.a, vx: fs.vx, vy: fs.vy, fuel: fs.fuel, cargo: fs.cargo || {}, upg: fs.upg || s.upg, gear: !!fs.gear });
+      (fs.mods || []).forEach((m, i) => { if (s.mods[i]) { s.mods[i].hp = m[0]; s.mods[i].dead = !!m[1]; } });
+      const f = s.fuel; stats(s); s.fuel = Math.min(f, s.fuelMax); sprite(s);
+      if (fs.d) {
+        if (fs.d.ty === 'ground') { s.x = fs.d.x; s.y = fs.d.y; s.a = fs.d.a; settle(s); }
+        else { const b = byKey(fs.d.b); if (b) { if (fs.d.ty === 'anchor') anchor(s, b, fs.d.cx, fs.d.cy); else { const arr = fs.d.ty === 'pad' ? b.pads : b.ports, p = arr && arr[fs.d.pi]; if (p && !p.occ) dock(s, b, p, fs.d.ty, true); } } }
       }
+      G.fleet.push(s);
+      if (fs.isPl) flying = s;
     }
+    if (flying) { flying.isPl = true; setPl(flying); cam.x = flying.x; cam.y = flying.y; }
+    else if (d.ev) { setEv(mkSuit(d.ev.x, d.ev.y)); ev.suit = d.ev.suit || 100; ev.sack = d.ev.sack || {}; cam.x = ev.x; cam.y = ev.y; }
+    else wakeAtHome();
+    cam.rot = Math.atan2(cam.y, cam.x) + Math.PI / 2; cam.snap = true;
     for (const st of W.stations) if (!G.jobs[st.name]) mkJobs(st);
-    $('gear').classList.toggle('act', pl.gear); mode('play'); cam.tz = defZoom(); cam.x = pl.x; cam.y = pl.y;
-    toast('SHIFT RESUMED · sector state restored', 'good');
-  } catch (e) { console.error(e); toast('Save unreadable — fresh sector', 'bad'); newRun(); }
+    mode('play'); cam.tz = defZoom();
+    toast('WELCOME BACK · day ' + (Math.floor(W.time / 1200) + 1) + ' in the band', 'good');
+  } catch (e) { console.error(e); toast('Save unreadable — fresh start', 'bad'); newRun(); }
+}
+
+// ─── runs ────────────────────────────────────────────────────────────────
+export function newRun() {
+  try { localStorage.removeItem(KEY); } catch (e) { /* */ }
+  apSet(false, false);
+  freshWorld((Math.random() * 1e9) | 0);
+  startPlay();
+}
+export function startDemo() {
+  freshWorld((Math.random() * 1e9) | 0);
+  AP.demo = true;
+  startPlay(true);
+  apSet(true, true);
+  toast('AI DEMO · the computer plays the whole career, start to finish · press P or tap AI to take over — demo runs are never saved', 'warn');
+}
+export function startPlay(quiet) {
+  mode('play'); cam.tz = defZoom(); cam.user = 0;
+  if (quiet) return;
+  toast('2035 · SHACKLETON RIM. You are a prospector with a suit, a bunk and 240₡.', 'warn');
+  setTimeout(() => toast('A/D walk · W hop · F use · walk east to the SELENE LIFT (follow the LIFT arrow)'), 2200);
+  setTimeout(() => toast('Press P any time to let the AI play.'), 5200);
+  save();
 }
 
 // ─── death / recovery ────────────────────────────────────────────────────
-export function rebuild(keep) {
-  const old = pl;
-  if (old) W.ships = W.ships.filter(s => s !== old);
-  if (ev) { setEv(null); AU.air(false); }
-  const A = W.stations[0];
-  setPl(mkPlayer(A.x - 460, A.y + 14));
-  if (old) { pl.credits = keep ? old.credits : Math.floor(old.credits * 0.85); pl.upg = old.upg; stats(pl); }
-  pl.fuel = pl.fuelMax; dockHome(pl);
-  PC.ctx = { l: '—', f: null, ok: false }; PC.alt = null; PC.assist = null;
-  cam.x = pl.x; cam.y = pl.y; cam.aux = null; PC.tgt = null; PC.breach = null; PC.match = false; PC.scan = false;
-  $('scan').classList.remove('on'); $('scanB').classList.remove('act'); $('match').classList.remove('act');
-}
-export function playerDied() {
-  if (G.mode === 'dead') return;
-  G.debt += 800; if (pl) pl.credits = Math.floor(pl.credits * 0.85);
-  feed('KITE lost. Keres Mutual logged another recovery tow.', 'bad');
-  if (ev) { setEv(null); AU.air(false); }
-  if (G.mode === 'title') { rebuild(true); return; }
+export function playerDied(why) {
+  if (G.mode === 'dead' || G.mode === 'title') return;
+  feed((why || 'A prospector') + ' — Rim medics brought you home.', 'bad');
+  if (AP.demo) { respawn(); return; }
+  $('dWhy').textContent = why || 'Signal lost.';
   statGrid($('dStats')); mode('dead');
 }
+export function respawn() {
+  if (pl) { pl.isPl = false; setPl(null); }
+  if (ev) setEv(null);
+  AU.air(false);
+  G.cr = Math.floor(G.cr * 0.85); G.ride = null;
+  if (G.crew && G.crew.state !== 'idle') { G.crew.late = true; }
+  wakeAtHome();
+  PC.scan = false; PC.match = false; PC.assist = null; $('scan').classList.remove('on');
+  mode('play'); toast('MEDBAY, HAB 14 · −15% credits. Your ships are where you left them.', 'warn');
+  save();
+}
 export function tow() {
-  if (!pl || pl.dead) return;
-  let m;
-  if (pl.credits >= 300) { pl.credits -= 300; m = 'TOW PAID · −300₡'; } else { G.debt += 400; m = 'TOW ON CREDIT · +400₡ debt'; }
-  if (pl.dock) undock(pl);
-  if (ev) { setEv(null); AU.air(false); }
-  // the recovery crew bolts loaner thrusters onto anything that cannot steer
-  let fixed = 0;
-  for (const m of pl.mods) if ((m.t === 'rcs' || m.t === 'eng') && (m.dead || m.hp < m.max * 0.4)) { m.dead = false; m.hp = Math.max(m.hp, m.max * 0.4); fixed++; }
-  if (fixed) { pl.dirty = true; stats(pl); m += ' · loaner thrusters fitted'; }
-  const A = W.stations[0];
-  pl.x = A.x - 460; pl.y = A.y + 14; pl.vx = pl.vy = pl.va = 0; pl.a = 0; pl.fuel = Math.max(pl.fuel, pl.fuelMax * 0.5);
-  PC.ctx = { l: '—', f: null, ok: false }; PC.alt = null; PC.breach = null;
-  dockHome(pl); cam.x = pl.x; cam.y = pl.y; mode('play'); toast(m, 'warn');
+  const f = 300;
+  if (pl && !pl.dead) {
+    const s = pl, home = s.cls === 'hare' ? SITES.depot : SITES.sel;
+    const paid = Math.min(G.cr, f); // the guild never leaves anyone out there — it takes what you have
+    G.cr -= paid; if (s.dock) undock(s);
+    const P = s.cls === 'hare' ? { p: home.pads.find(q => !q.occ), ty: 'pad' } : { p: home.ports.find(q => q.berth && !q.occ) || home.ports.find(q => !q.occ), ty: 'port' };
+    if (P.p) dock(s, home, P.p, P.ty, true);
+    s.fuel = Math.max(s.fuel, s.fuelMax * 0.4);
+    for (const m of s.mods) if ((m.t === 'rcs' || m.t === 'eng') && m.dead) { m.dead = false; m.hp = m.max * 0.4; }
+    stats(s); s.dirty = true; cam.snap = true;
+    mode('play'); toast('TOW · −' + paid + '₡' + (paid < f ? ' (all you had)' : '') + ' · ' + s.name + ' brought to ' + home.name, 'warn');
+  } else if (ev && !ev.hide) {
+    const st = hy(ev.x, ev.y) > C.RM + 600 ? SITES.sel : SITES.hab, p = airlockSpot(st, ev.x, ev.y);
+    G.cr = Math.max(0, G.cr - 120); ev.x = p.x; ev.y = p.y; ev.vx = ev.vy = 0; ev.suit = 100; cam.snap = true;
+    mode('play'); toast('RESCUE · −120₡ · brought inside ' + st.name, 'warn');
+  } else mode('play');
 }
 
 // ─── settings / bindings ─────────────────────────────────────────────────
@@ -195,11 +197,36 @@ export function syncSound() {
 export function toggleAI() {
   if (!G || G.mode === 'title') return;
   apSet(!AP.on);
-  toast(AP.on ? 'AI PILOT ENGAGED — sit back' : 'MANUAL CONTROL — your stick' + (AP.demo ? ' · demo sector, not saved' : ''), AP.on ? 'good' : 'warn');
+  toast(AP.on ? 'AI PLAYER ENGAGED — sit back' : 'MANUAL CONTROL — yours' + (AP.demo ? ' · demo run, not saved' : ''), AP.on ? 'good' : 'warn');
 }
-export function titleCam() { cam.tz = cl(V.w / 1100, 0.45, 1.1); }
+export function titleCam() { cam.tz = cl(V.w / 1400, 0.3, 0.8); cam.user = 999; }
 
+function qtyFor(st, g, buy) {
+  let q = G.qty; const h = hold(); if (!h) return 0;
+  if (q === 'MAX') q = buy ? Math.min(Math.floor(G.cr / Math.max(1, price(st, g))), h.max - h.used, st.econ[g].stock | 0) : h.c[g] || 0;
+  return Math.max(1, Math.floor(q));
+}
+export function panelAct(a, data) {
+  const st = G.panel; if (!st) return;
+  if (a === 'qty') { G.qty = data.q === 'MAX' ? 'MAX' : +data.q; }
+  else if (a === 'buy' || a === 'sell') { trade(st, data.g, qtyFor(st, data.g, a === 'buy'), a === 'buy'); }
+  else if (a === 'svc') { const s = G.svc[+data.i]; if (s && s.ok) s.f(); }
+  else if (a === 'accept') accept(st, data.id);
+  else if (a === 'drop') drop(data.id);
+  else if (a === 'shift') { if (boardShift()) story('board'); return; }
+  else if (a === 'buyship') buyShip(st, data.c);
+  else if (a === 'bounty') collectBounty();
+  else if (a === 'cores') {
+    const h = hold(), n = h ? h.c.core || 0 : 0;
+    if (n) { delete h.c.core; if (h.ship) stats(h.ship); G.cores += n; G.cr += n * 400; W.stats.earned += n * 400; AU.cash(); toast('CATALOG OFFICE takes ' + n + ' core shard' + (n > 1 ? 's' : '') + ' · +' + fm(n * 400) + '₡ · the techs start reading the logs', 'good'); story('tick'); }
+  }
+  else if (a === 'file') story('filed');
+  else if (a === 'eva') { closeStation(); enterEVA(); return; }
+  else if (a === 'sleep') { if (ev) ev.suit = 100; save(); toast('Slept. Saved. The cable hums outside.', 'good'); }
+  panel(); hudDOM();
+}
 export function bindUI() {
+  setSaver(save);
   const sndT = () => { G.sound = !G.sound; AU.init(); syncSound(); save(); };
   $('snd').onclick = sndT; $('sndT').onclick = sndT; $('snd2').onclick = sndT;
   $('pauseB').onclick = () => { if (G.mode === 'play') mode('pause'); else if (G.mode === 'pause') mode('play'); };
@@ -209,64 +236,49 @@ export function bindUI() {
   $('man').onclick = () => { $('helpO').classList.add('on'); AU.ui(); }; $('man2').onclick = () => { $('helpO').classList.add('on'); AU.ui(); };
   $('helpX').onclick = () => { $('helpO').classList.remove('on'); AU.ui(); };
   $('tow').onclick = tow;
-  $('newSec').onclick = () => confirmBox('Abandon this sector? The ledger, the people and every cut you made in the rock will be gone.', newRun);
+  $('newSec').onclick = () => confirmBox('Start over? Your credits, ships and every cut you made in the band will be gone.', newRun);
   $('exit').onclick = () => {
-    save(); const wasDemo = AP.demo; apSet(false, false); mode('title');
+    save(); const wasDemo = AP.demo; apSet(false, false); AP.demo = false; mode('title');
     const s = readSave();
     $('cont').style.display = s ? '' : 'none';
-    $('note').textContent = s ? 'SAVED · seed ' + s.seed + ' · shift ' + (s.g.shift || 1) + ' · ' + fm(s.pl.credits) + '₡' : wasDemo ? 'Demo ended. The belt is waiting for you.' : '';
+    $('note').textContent = s ? 'SAVED · day ' + (Math.floor(s.time / 1200) + 1) + ' · ' + fm(s.g.cr) + '₡' : wasDemo ? 'Demo ended. The band is waiting.' : '';
     titleCam();
   };
   $('go').onclick = () => { AU.init(); newRun(); };
   $('cont').onclick = () => { AU.init(); load(); };
   $('demo').onclick = () => { AU.init(); startDemo(); };
-  $('respawn').onclick = () => { rebuild(true); mode('play'); toast('RECOVERY COMPLETE · new hull, same ledger', 'warn'); save(); };
-  $('keep').onclick = () => { mode('play'); toast('The belt keeps turning. Fly it as long as you like.', 'good'); };
+  $('respawn').onclick = respawn;
+  $('keep').onclick = () => { mode('play'); toast('The band keeps turning. Fly it as long as you like.', 'good'); };
   $('sX').onclick = closeStation;
-  $('undock').onclick = () => { const st = G.panel; if (pl.dock && st && pl.dock.b === st) undock(pl); closeStation(); };
-  document.querySelectorAll('#stationO .tabs button').forEach(b => (b.onclick = () => { G.tab = b.dataset.t; panel(); AU.ui(); }));
-  $('pBody').addEventListener('click', e => {
-    const b = e.target.closest('button'); if (!b || b.disabled) return;
-    const st = G.panel, a = b.dataset.a; AU.ui();
-    if (a === 'qty') { G.qty = b.dataset.q === 'MAX' ? 'MAX' : +b.dataset.q; panel(); return; }
-    if (a === 'buy' || a === 'sell') {
-      const g = b.dataset.g; let q = G.qty;
-      if (q === 'MAX') q = a === 'buy' ? Math.min(Math.floor(pl.credits / price(st, g)), Math.floor((pl.cargoMax - cmass(pl)) / GD[g].m), st.econ[g].stock | 0) : pl.cargo[g] || 0;
-      trade(st, g, Math.max(1, Math.floor(q)), a === 'buy'); panel(); hudDOM(); return;
-    }
-    if (a === 'svc') { const s = G.svc[+b.dataset.i]; if (s && s.ok) { s.f(); panel(); hudDOM(); } return; }
-    if (a === 'accept') { const j = (G.jobs[st.name] || []).find(x => x.id === b.dataset.id); if (j) accept(j); panel(); return; }
-    if (a === 'drop') { const j = G.missions.find(x => x.id === b.dataset.id); if (j) { G.missions = G.missions.filter(m => m !== j); addRep(j.rep, -2); toast('Contract dropped · rep −2', 'warn'); } panel(); return; }
-    if (a === 'talk') { const x = AG.find(q => q.id == b.dataset.id); if (x) talk({ ag: x }, st); }
-  });
+  $('undock').onclick = () => { const st = G.panel; if (pl && pl.dock && st && pl.dock.b === st) undock(pl); closeStation(); };
+  $('sTabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; G.tab = b.dataset.t; panel(); AU.ui(); });
+  $('pBody').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.disabled) return; AU.ui(); panelAct(b.dataset.a, b.dataset); });
   $('miniWrap').onclick = () => { $('mapO').classList.add('on'); chart($('chart'), true); AU.ui(); };
   $('mapX').onclick = () => { $('mapO').classList.remove('on'); AU.ui(); };
   $('chart').addEventListener('pointerdown', e => {
-    const cv = $('chart'), r = cv.getBoundingClientRect();
-    setNav(cl(((e.clientX - r.left) / r.width) * C.W, 0, C.W), cl(((e.clientY - r.top) / r.height) * C.H, 0, C.H), 'CHART WAYPOINT'); chart(cv, true);
+    const cv = $('chart'), r = cv.getBoundingClientRect(), m = cv._map; if (!m) return;
+    const px = ((e.clientX - r.left) / r.width) * cv.width - cv.width / 2, py = ((e.clientY - r.top) / r.height) * cv.height - cv.height / 2;
+    setNav(m.cx0 + px / m.sc, m.cy0 + py / m.sc, 'CHART WAYPOINT'); chart(cv, true);
   });
   $('scanX').onclick = () => { PC.scan = false; $('scan').classList.remove('on'); $('scanB').classList.remove('act'); };
   $('freq').addEventListener('input', e => { PC.freq = parseFloat(e.target.value); $('fVal').textContent = PC.freq.toFixed(1) + ' kHz'; });
-  // the cockpit buttons queue edges so human and AI share one code path
   IN.bind('ctx', () => IN.edge.push('ctx')); IN.bind('alt', () => IN.edge.push('alt'));
   IN.bind('match', () => IN.edge.push('match')); IN.bind('brake'); IN.bind('targ', () => IN.edge.push('target'));
-  IN.bind('gear', () => IN.edge.push('gear')); IN.bind('scanB', () => IN.edge.push('scan')); IN.bind('mineB'); IN.bind('fireB');
-  addEventListener('resize', () => { resize(); cam.tz = cl(cam.tz, 0.35, 3.4); });
-  addEventListener('orientationchange', () => setTimeout(() => { resize(); if (G.mode === 'title') titleCam(); else cam.tz = defZoom(); }, 250));
+  IN.bind('gear', () => IN.edge.push('gear')); IN.bind('scanB', () => IN.edge.push('scan')); IN.bind('mineB');
+  addEventListener('resize', () => { resize(); });
+  addEventListener('orientationchange', () => setTimeout(() => { resize(); if (G.mode === 'title') titleCam(); }, 250));
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { save(); if (G && G.mode === 'play') { mode('pause'); G.autoPaused = true; } }
-    else if (G && G.autoPaused && G.mode === 'pause' && AP.on) { G.autoPaused = false; mode('play'); }
+    if (document.hidden) { save(); if (G && G.mode === 'play' && !AP.on) { mode('pause'); G.autoPaused = true; } }
+    else if (G && G.autoPaused && G.mode === 'pause') { G.autoPaused = false; }
   });
   addEventListener('beforeunload', save);
 }
-
-/** global key edges that work in any mode */
 export function globalEdges() {
   for (let i = IN.edge.length - 1; i >= 0; i--) {
     const e = IN.edge[i];
-    if (e === 'pause') { IN.edge.splice(i, 1); if (G.mode === 'play') mode('pause'); else if (G.mode === 'pause') mode('play'); }
+    if (e === 'pause') { IN.edge.splice(i, 1); if ($('stationO').classList.contains('on')) closeStation(); else if (G.mode === 'play') mode('pause'); else if (G.mode === 'pause') mode('play'); }
     else if (e === 'help') { IN.edge.splice(i, 1); $('helpO').classList.toggle('on'); }
     else if (e === 'ai') { IN.edge.splice(i, 1); toggleAI(); }
   }
 }
-export { NAV };
+export { openStation, storyObj, sackN, cmass, GD, setG, AG };
