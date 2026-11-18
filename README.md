@@ -1,129 +1,186 @@
-# Keres9 — TYPHON SHADOW
+# KERES-9 — CATALOG ZERO · Moon 2035
 
-2D Newtonian space simulation game. Trade, Mine, Explore, Combat, Scavenge.
+A 2D Newtonian game set in lunar orbit, about prospecting and surveying.
 
-You fly the KITE, a small mining ship in debt to Keres Mutual. The belt below the gas giant TYPHON is full of things to do:
-- Cellular rocks you can cut apart, and caves you can explore.
-- Derelict hulls to breach and loot.
-- Four stations with their own markets and production chains.
-- Roughly two dozen NPC crews who mine, haul, fight, run, and call for help.
-- Void Kings raiders.
-- A sector director that keeps throwing new trouble at you.
+Haul engines drag rocks and comets in from the Belt and the Kuiper dark and park them in lunar orbit. Then the **KERES-9** catalog AI died, and nobody knows what is up there anymore. More than 300 bodies in the band are uncatalogued.
+
+You live in HAB 14 on the Shackleton rim. Every morning you ride the Selene Lift cable up to orbit. You start as an EVA crew hand with a suit and a hand cutter. You work up to an orbital tug, and then to a surface lander. In the end you stake the **Orphan**: a huge metallic body with a platinum heart that nobody admits to owning.
 
 ## Run it
 
-It's a static site with no build step. ES modules need a real HTTP origin, so serve the folder rather than opening it as a file:
+It's a static site with no build step. ES modules need a real HTTP origin, so serve the folder rather than opening `index.html` as a file:
 
 ```sh
 python3 -m http.server 8080        # or: npx serve .
 # open http://localhost:8080/          → title screen
-# open http://localhost:8080/?demo     → straight into the AI pilot showcase
+# open http://localhost:8080/?demo     → straight into WATCH AI PLAY
 ```
 
-## Watch the AI pilot
+The career saves to `localStorage` under the key `keres9_moon2035_v1`. Demo runs are never saved.
 
-Click **WATCH AI PILOT** on the title screen (or open `?demo`), and the computer plays the whole game without stopping. A caption panel explains each move as it happens. It shows:
-- the current task;
-- what the pilot is doing;
-- live telemetry: burn mode, docking gates, laser DPS, suit air.
+## The world
 
-What the pilot does:
-- **Flight:** braking-aware point-to-point burns with real flip-and-burn retro manoeuvres. It uses RCS for fine translation, plans detours around rocks, and looks ahead along its velocity to brake before terrain. Long hauls use time warp.
-- **Docking:**
-  - KERES ANCHOR clamp ports and landing pads with mag-gear;
-  - SLAGWORKS, which spins: it tracks the moving port;
-  - HUB SEVEN's rotating ring: it matches the ring's tangential velocity.
-- **Mining:** it picks rocks by the ore it wants, sets a harpoon on the face and cuts a shaft. It then hover-cuts to widen the seam and scoops up the loose ore.
-- **Scanning:** directional-array sweeps, resonance lock and drift tracking, then chasing what it found.
-- **Caves and derelicts:**
-  - harpoons next to a cave mouth or a breach point and sets cutting charges;
-  - goes out on EVA with a jetpack, following path-finding through the tunnels;
-  - pings the hand scanner and hauls loot back to the ship.
-- **Combat:** lead-pursuit dogfights with strafing. It holds fire when a friendly is in the line of fire, picks up escape pods afterwards, and breaks off when the hull or fuel runs low.
+- **The Moon** is an analytic regolith heightfield with contact physics and a day/night cycle. Gravity is 1.6 m/s² at the surface. The camera rotates so that "up" always points away from the Moon. A dotted line shows your ballistic path, and **IMPACT** warns you when that path hits the ground.
+- **The synchronous band** is 1.5 km up. Rocks and stations sit there because gravity and the rotating frame balance out, so they hang still above the Rim. That is why the cable works.
+- **Places:**
+
+  | Site | Where | What's there |
+  |---|---|---|
+  | HAB 14 | surface | home |
+  | Selene Lift | surface ↔ band | a counterweighted pair of cars on a 1.4 km cable |
+  | SELENE HIGH | in the band, at the top of the cable | crew office, shipyard, market, Catalog Office |
+  | SHACKLETON DEPOT | surface | landing pads, HARE yard; ice and metal sell for more down here |
+  | VULCAN REFINERY | in the band | refinery: trading and refuel |
+  | ARES TRANSIT (Mars-bound), GAIA RETURN (Earth-bound) | pass through the band | transfer ships that come and go in numbered generations (II, III, …), each with its own buyers |
+
+- **Rocks** are cellular. You can cut them with a laser and they rotate. Each holds its own mix of water ice, nickel-iron, volatiles, platinum group, rare-earth crystal and parts. Some also hide sealed chambers, KERES-9 core shards or HELION claim transponders.
+
+## The career
+
+Three tiers carried by a 15-step story:
+
+| Tier | Ship | What you do |
+|---|---|---|
+| 1 · Crew hand | your suit; Foreman Lu's MULE-3 shuttle | Ride the lift up, sign on in the CREW OFFICE, and get dropped at a rock. Cut ore on EVA until your sack is full, then get back aboard before the horn. Pay is a base rate plus half your haul. |
+| 2 · Orbital tug | **WREN** (2,400₡ at SELENE HIGH) | Fly anywhere in the band. Harpoon onto rocks and mine from the hull. Survey bodies, deep-scan for core shards and claim tags, and sell to the Mars, Earth and refinery buyers. |
+| 3 · Lander | **HARE** (6,500₡ at SHACKLETON DEPOT) | You fly it all the way: launch from the pad, climb into the band, mine and trade, then deorbit and land on the tail. You carry water down the well and mine the Orphan. |
+
+Story steps:
+1. wake
+2. ride up the cable
+3. sign on with Lu
+4. first shift
+5. survey 3 bodies
+6. save for the WREN
+7. sell 8 units off-world
+8. resolve 2 ghost claim tags
+9. hand in 3 KERES-9 core shards
+10. buy the HARE
+11. pad to orbit
+12. sell 20 water ice at the Depot
+13. sell 12 platinum group from the Orphan to GAIA RETURN
+14. file the claim at the Catalog Office
+15. free prospector
+
+The contract boards keep the work coming: survey jobs, delivery runs, and up-well runs from the surface to SELENE HIGH.
+
+Upgrades for sale:
+- **Ship:** ENGINE TUNE, CARGO RACKS, LASER FOCUS, AUX TANKS, ARRAY GAIN.
+- **Suit:** BIG TANK, DEEP SACK, HOT CUTTER.
+
+If you die, Rim medics wake you in HAB 14 and you lose 15% of your credits. If you're stranded, the pause menu lets you call a rescue tow for 120–300₡.
+
+## Watch the AI play
+
+Click **WATCH AI PLAY** on the title screen (or open `?demo`), and the computer plays the career on its own. It uses the same sticks, throttle rail and buttons a human does: it never moves a ship directly. A caption panel explains each move, along with the current task and live telemetry. Time runs at ×3 during long cruises.
+
+What it does:
+
+- **On foot and EVA:**
+  - Walks between rooms with path-finding and rides the lift.
+  - On crew shifts, it surveys with the hand scanner, cuts ore, tops up its air and stows the sack before the horn.
+  - Boards ships as soon as the BOARD prompt is live.
+- **Flight** (a gravity-aware autopilot, `src/autop.js`, which NPC traffic also uses):
+  - Plans detours around rocks.
+  - Caps cruise speed in the band.
+  - **Arc routing:** long trips follow the band's curve rather than the straight chord, which would sag below the synchronous radius. On a 4 km leg this cuts fuel about 4×.
+  - Approaches station berths along the port axis, then clamps.
+  - Pad approaches for the tail-sitting HARE, with a fuel check before every descent.
+  - Launches from the pad without tripping its clamp interlock.
+- **Mining:**
+  - Picks rocks by value and distance, and skips rocks that refused its harpoon.
+  - Harpoons onto the rock from a standoff point and turns the laser mount (not the hull) to face the target.
+  - Sweeps the cut, scoops the loose ore, and comes back for more.
+  - **On the Orphan:** casts rays to find the real surface above each platinum vein, chooses a reachable one, rounds the body in short ring hops to reach it, and cuts down to it.
+- **Scanning:** surveys UNKNOWN bodies on the way past. For deep contacts it perches on the rock and sweeps the directional array's dial to find the resonance.
 - **Economy:**
-  - sells cargo where it pays best (never back where it bought);
-  - trades price spreads between stations, at most once every 4 minutes;
-  - signs contracts and goes after bounty targets;
-  - buys rounds at the bar to hear rumours;
-  - refuels, repairs, buys upgrades and pays down the ledger.
-- **Story:** it advances the shift storyline (first clamp → Slagworks ore → anomaly and crystal → Void Kings → debt).
-- **Failure states, as part of the show:**
-  - Answers SOS beacons from other crews.
-  - When it is broke and out of fuel, or crippled (no RCS, or a dead drive), it calls the recovery tow.
-  - When it dies, it accepts the respawn.
+  - Sells where the price is best and refuels against a reserve model. The reserve grows with distance, how far the ship is from the band, and how far it is down the well, with a floor of 22% of the tank.
+  - Takes contracts it can finish, buys upgrades and the next ship, and hands in shards, collects bounties and files the claim at the Catalog Office.
+- **Recovery:**
+  - Detects stalled legs and backs out the open way.
+  - Kicks a pinned suit free.
+  - Rethinks any task that runs too long.
+  - Stops retrying Catalog Office visits that change nothing.
+  - Calls the tow as a last resort.
 
-A showcase director makes sure scanning, cave EVAs and derelict breaches come up regularly. It also caps how long any one activity can run, so the show keeps moving.
+**Take over at any time:** touch a stick or a flight key and control hands back to you. Press **P**, or use **AI PILOT** in the pause menu, to toggle the AI during a normal career.
 
-**Take over at any time:**
-- Touch a stick or hold a flight key for about 0.3 s and control hands back to you.
-- Press **P** (or the **AI** button in the HUD) to toggle the pilot on and off during a normal run.
+## Controls
 
-In demo mode the player ship takes reduced damage, so the show doesn't end too early. Normal play doesn't get this bonus.
-
-## Controls (keyboard)
+**Desktop:**
 
 | Key | Action |
 |---|---|
-| W A S D | RCS translate |
-| Q / E | spin |
+| W A S D | RCS translate (screen-relative); on the ground A/D walk, W hops |
+| Q / E | turn |
 | Shift / Ctrl | throttle up / down |
-| Space | guns |
-| M | mining laser |
-| Z | brake (kill ΔV) |
-| X | match ΔV with target |
-| F | context action (dock / land / anchor / board / grab) |
-| V | alt action (EVA, release) |
-| C | directional scanner |
+| M | mining laser / suit cutter |
+| F | use: context action (terminal, lift, dock, land, harpoon, board) |
+| V | alt: suit scanner ping on EVA; SAS (UP / RETRO / PRO) in flight |
+| X | match target velocity |
+| Z | brake against the band |
 | T / Tab | cycle target |
 | G | landing gear |
-| P | AI pilot on/off |
-| H | flight manual |
-| Esc | pause (tow, new sector, exit) |
+| C | directional array / hand scanner |
+| P | AI player on/off |
+| H | field manual |
+| Esc | pause (tow, new career, exit) |
 
-On touch devices you get two virtual sticks, a throttle slider and action buttons.
+**Touch:** the left stick moves and fires RCS relative to the screen. The right stick turns. The right rail is the throttle. Tap to pick a target.
+
+**Docking and landing limits:**
+- Berths clamp below 2.5 m/s.
+- Harpoons hold below 3 m/s relative to the rock.
+- The HARE pad clamps automatically if you come down nose-up, under 3 m/s, with less than 20° of tilt.
 
 ## Code layout
 
 ```
-index.html            DOM shell (HUD, panels, overlays) → loads src/main.js
+index.html            DOM shell (title, HUD, station panel, chart, manual) → loads src/main.js
 src/styles.css
-src/main.js           entry: hook wiring, fixed-step tick() + render loop, boot, window.KERES debug handle
-src/game.js           session lifecycle: new run / demo / load / save / death / tow, UI bindings
+src/main.js           entry: hook wiring, fixed-step tick() + render loop, window.KERES debug handle
+src/game.js           session lifecycle: new career / demo / load / save / death / tow, panel actions
 src/hooks.js          late-bound callbacks so the sim never imports UI directly
-src/core/             util.js (math, rng), config.js (constants, materials, goods), state.js (W, G, pl, ev, AG, cam, PC)
-src/world/            body.js (cellular terrain: cut, collide, ray), gen.js (sector generation, stations, rocks, hulks)
-src/ships.js          ship layouts, module stats, docking / anchoring
-src/physics.js        ship integration, loose cargo, debris
-src/combat.js         damage model, guns, mining laser, bullets, meteors
-src/eva.js            suit physics, tether, carrying cargo
-src/player.js         human control mapping, camera, docking gates, harpoon / breach
-src/scanner.js        directional array
-src/economy.js        markets, production chains, services, station hull repair crews
-src/agents.js         NPC crews (miners, haulers, pirates, rescuers)
-src/missions.js       storyline and contract board
+src/input.js          keyboard + touch sticks, throttle rail, buttons
+src/core/             util.js (math, rng), config.js (constants, materials, goods, ship classes), state.js (W, G, pl, ev, cam, PC)
+src/world/moon.js     lunar heightfield, ground contact, day/night
+src/world/body.js     cellular terrain: cut, collide, ray, ports
+src/world/gen.js      world generation: stations, surface sites, band rocks, the Orphan
+src/lift.js           the Selene Lift cars
+src/crew.js           tier 1: Foreman Lu, MULE-3 and the EVA crew
+src/autop.js          gravity-aware steering shared by NPC traffic and the AI
+src/ships.js          ship layouts, module stats, docking / anchoring / attach
+src/physics.js        ship integration, engines, RCS, pad clamps, loose cargo
+src/combat.js         module damage model, mining laser
+src/eva.js            suit physics, rooms, boarding, hand scanner
+src/player.js         human control mapping, camera, context actions, harpoon
+src/scanner.js        directional array, dial and resonance lock
+src/economy.js        markets, services, shipyard, upgrades, hold
+src/missions.js       story steps and contract boards
+src/agents.js         NPC traffic in the band
+src/events.js         world events (inbound hauls, meteors, …)
 src/social.js         bar talk and rumours
-src/events.js         sector director (raids, convoys, distress, meteor showers, …)
-src/fx.js             particles
-src/render/render.js  renderer (terrain, lighting, ships, FX, minimap, scope, chart)
-src/ui.js             HUD and panels
-src/ai/nav.js         flight primitives: fly(), travel(), docking approaches, EVA path-finding
-src/ai/pilot.js       AI pilot brain: planner, showcase director, behaviours, captions
+src/fx.js, audio.js   particles and sound
+src/render/render.js  renderer (Moon, terrain, lighting, ships, FX, chart)
+src/ui.js             HUD and station panels
+src/ai/nav.js         AI flight primitives: fly(), flyRoute() arc routing, port / pad approaches, EVA path-finding
+src/ai/pilot.js       AI player brain: tier planner, tasks, captions, recovery
 original/             the original single-file v1.1 build, kept for reference
 scripts/fast-sim.mjs  headless soak test (see below)
 ```
 
 ## Testing
 
-`window.KERES` exposes the live state, plus:
-- `fast(seconds, cb, every)`: runs the simulation without rendering.
-- `force(name)`: starts a specific AI activity (`cave`, `breach`, `scan`, `mine`, `flyby`).
+`window.KERES` exposes the live state (`W`, `G`, `pl`, `ev`, `AP`, `PC`, `SITES`, …). It also provides `fast(seconds, cb, every)`, which runs the simulation without rendering.
 
-`scripts/fast-sim.mjs` drives this through headless Chromium (needs `puppeteer-core` and a Chromium build). It simulates N seconds of AI play and prints the following:
-- a timeline of tasks and captions;
-- telemetry;
-- final world stats (mined, kills, docked, rescues, breaches, eva, jobs…);
+`scripts/fast-sim.mjs` uses this through headless Chromium. It needs `puppeteer-core`, plus either `CHROME_PATH` or `@sparticuz/chromium`. It simulates N seconds of AI play and prints:
+- a timeline of story step, tier, credits, task and caption;
+- final world stats (mined, earned, catalogued, shifts, delivered, lifts, …);
+- the AI's caption log;
 - any console errors.
 
 ```sh
-node scripts/fast-sim.mjs 1800 5 http://localhost:8080/?demo > run.log
+node scripts/fast-sim.mjs 3600 60 http://localhost:8080/?demo > run.log
 ```
+
+Status: in headless runs the AI has made it from a fresh career into the WREN tier. Runs started at story step 11 (pad to orbit) have finished the career (tiers 2 and 3, through filing the Orphan claim). Runs are not deterministic, so tuning is still going on.
