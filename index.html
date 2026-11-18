@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#04070c">
+<meta name="mobile-web-app-capable" content="yes">
+<title>KERES-9 // TYPHON SHADOW</title>
+<link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+<canvas id="cv"></canvas><div id="grain"></div><div id="lines"></div><div id="vig"></div>
+<div id="hud">
+ <div id="bar"><span id="cred">₡ 0</span><span id="debt">DEBT 25,000</span>
+  <div class="bar" data-l="FUEL" id="fB"><i id="fF"></i></div><div class="bar" data-l="HULL" id="hB"><i id="hF"></i></div>
+  <div class="bar" data-l="CRG" id="cB"><i id="cF"></i></div><span id="mode">FLIGHT</span><span id="warp"></span><span class="sp"></span><span id="clk">SHIFT 01</span>
+  <button class="ico" id="aiB" title="AI pilot [P]">AI</button><button class="ico" id="snd">🔊</button><button class="ico" id="pauseB">▐▐</button></div>
+ <div id="track"><b>OBJECTIVE</b><div id="tObj">—</div><em id="tRew"></em></div>
+ <div id="toasts"></div>
+ <div id="evBan"></div>
+ <div id="tgt"><span id="tName">—</span><span id="tKind"></span><div id="tNum"><span>D <b id="tDist">0</b>m</span><span>ΔV <b id="tRel">0</b></span><span>CLG <b id="tClose">0</b></span></div></div>
+ <div id="miniWrap"><canvas id="mini" width="126" height="94"></canvas></div>
+ <div id="apBox"><div id="apHead"><b>AI PILOT</b><span id="apAct">—</span><span id="apTime"></span></div><div id="apCap">—</div><div id="apSub"></div></div>
+ <div id="dock"><canvas id="scope" width="86" height="86"></canvas><div id="dInfo"><div id="dTitle">CLAMP ENVELOPE</div>
+  <div class="gate" id="gS">SPD</div><div class="gate" id="gA">ANG</div><div class="gate" id="gL">LAT</div><div class="gate" id="gR">ROT</div><div id="dHint"></div></div></div>
+ <div id="scan"><div id="sHead"><span>DIRECTIONAL ARRAY · TUNE &amp; TRACK</span><button id="scanX">✕</button></div>
+  <canvas id="spec" width="480" height="56"></canvas><div id="fRow"><input type="range" id="freq" min="20" max="200" step="0.1" value="110"><span id="fVal">110.0 kHz</span></div>
+  <div id="lock"><div id="lockF"></div></div><div id="sLabel">sweep the cone across rock · find a resonance · hold the lock</div></div>
+ <div class="zone" id="zL"><div class="base" id="bL" data-l="RCS · TRANSLATE"><div class="thumb" id="tL"></div></div></div>
+ <div class="zone" id="zR"><div class="base" id="bR" data-l="SPIN · TORQUE"><div class="thumb" id="tR"></div></div></div>
+ <div id="thr"><div id="thrTrack"></div><div id="thrF"></div><div id="thrT"></div></div>
+ <div id="clL"><button class="sq" id="match">MATCH<br>ΔV</button><button class="sq" id="brake">BRAKE</button><button class="sq" id="targ">TGT ▸</button><button class="sq" id="gear">GEAR</button></div>
+ <div id="clR"><button id="ctx"><span id="ctxL">—</span></button><button id="alt">ALT</button>
+  <div class="row3"><button class="sq" id="scanB">SCAN</button><button class="sq" id="mineB">MINE</button><button class="sq" id="fireB">FIRE</button></div></div>
+</div>
+<div id="title">
+ <div id="boot"><div>&gt; KERES MUTUAL TRANSPONDER LINK … OK</div><div>&gt; SECTOR K-9 · TYPHON SHADOW · GRAV GRADIENT 1.1 m/s² ↓</div><div>&gt; LEDGER ENTRY: CESARENKO, P. — 25,000₡ OUTSTANDING</div></div>
+ <h1>KERES-9</h1><h3>TYPHON SHADOW · BELT SECTOR SIM</h3>
+ <p id="lore">Eleven thousand souls in tin cans, a moon that never lets go, and a ledger with your name on it. The belt is <em>one continuous place</em> — stations open when you enter them, rock gives way to the laser, and every wreck still has something worth carrying home. <em>Fly manual. Clamp clean. Get paid.</em></p>
+ <div id="tBtns"><button id="cont" style="display:none">CONTINUE SHIFT</button><button id="go">IGNITE · NEW RUN</button><button id="demo">WATCH AI PILOT</button><button id="man">FLIGHT MANUAL</button><button id="sndT">SOUND: ON</button></div>
+ <div id="note"></div>
+ <div id="hint">TOUCH — left stick: RCS · right stick: spin · right rail: throttle · tap: target<br>DESKTOP — WASD · Q/E spin · SHIFT/CTRL throttle · SPACE fire · M mine · F action · V alt · X match · Z brake · T target · G gear · C scanner · P AI pilot · ESC pause</div>
+</div>
+<div class="ov" id="pauseO"><div class="sheet"><header><h2>SHIFT PAUSED</h2><button class="x" id="resX">✕</button></header>
+ <div class="menu"><button id="res">RESUME FLIGHT</button><button id="aiP">AI PILOT: OFF</button><button id="man2">FLIGHT MANUAL</button><button id="snd2">SOUND: ON</button>
+ <button id="tow">CALL RECOVERY TOW · 300₡</button><button id="newSec">ABANDON · NEW SECTOR</button><button id="exit">EXIT TO TITLE</button></div></div></div>
+<div class="ov" id="helpO"><div class="sheet"><header><h2>FLIGHT MANUAL</h2><button class="x" id="helpX">✕</button></header><div class="body">
+ <h4>NEWTONIAN FLIGHT</h4><table>
+ <tr><td>Left stick / WASD</td><td>RCS translation. Velocity <em>persists</em>. Typhon pulls everything gently down.</td></tr>
+ <tr><td>Right stick / Q·E</td><td>Rotation torque. Gyros damp spin when released.</td></tr>
+ <tr><td>Right rail / SHIFT·CTRL</td><td>Main throttle. Burns reaction mass from the engine module.</td></tr>
+ <tr><td>MATCH / X</td><td>Station-keeping: holds the target's velocity (or zero). Push the stick to creep at up to 8 m/s while it holds.</td></tr>
+ <tr><td>BRAKE / Z</td><td>Same, against absolute zero. T / TGT cycles targets, tap anything to target it, tap empty space to set a nav waypoint.</td></tr></table>
+ <h4>DOCKING · LANDING · ANCHOR · BREACH</h4><table>
+ <tr><td>CLAMP</td><td>Nose to port. Four gates: ΔV &lt; 2.5, angle &lt; 10°, lateral &lt; 10 m, spin matched. Ring ports <em>rotate</em> — match their tangential velocity.</td></tr>
+ <tr><td>LAND</td><td>Deploy GEAR, present your belly to the pad, settle under 1.8 m/s.</td></tr>
+ <tr><td>ANCHOR</td><td>Harpoon rock or hull within 18 m at &lt; 3 m/s. RELEASE on the small button.</td></tr>
+ <tr><td>BREACH</td><td>Anchored to a derelict or hostile hull: cut a hole, vent its air, then EVA inside. No loading — the roof just lifts.</td></tr></table>
+ <h4>DIRECTIONAL SCANNER</h4><table>
+ <tr><td>SCAN / C</td><td>Cone follows your nose. Deep contacts hide at unknown frequencies.</td></tr>
+ <tr><td>TUNE &amp; TRACK</td><td>Drag the dial: the spectrum bumps and the geiger clicks faster near resonance. Resonance drifts — hold it until LOCK resolves sealed caves, veins, caches and hideouts.</td></tr></table>
+ <h4>EVA</h4><table>
+ <tr><td>EVA action</td><td>While attached or drifting &lt; 2 m/s. Left stick jetpack, right stick aims light and pistol.</td></tr>
+ <tr><td>GRAB / PING</td><td>Carry one crate; bring it to your hull to stow. SCAN pulses the hand scanner. Suit air lasts 120 s and refills aboard.</td></tr></table>
+ <h4>AI PILOT</h4><table>
+ <tr><td>AI / P</td><td>Hand the stick to the ship's AI. It flies with the <em>same controls you do</em> — watch the sticks, throttle rail and buttons move — and works through every trade the belt offers: flip-and-burn transits, clamp and pad landings on spinning stations, harpoon mining, array tuning, breaching derelicts, EVA salvage, dogfights, rescues, markets, upgrades and the ledger.</td></tr>
+ <tr><td>WATCH AI PILOT</td><td>From the title: a fresh sector flown end-to-end by the AI, uninterrupted, never saved. Press P (or AI) at any moment to take the controls yourself.</td></tr></table>
+ <h4>LIVING SECTOR</h4><table>
+ <tr><td>Economy</td><td>Stations produce and consume; every trade moves prices. Bar rumors point at real anomalies.</td></tr>
+ <tr><td>People</td><td>Named crews with credits, goals and grudges. Lose a hull → pod → station hand → they fly again.</td></tr>
+ <tr><td>Sector events</td><td>Void Kings raids, distress beacons, micrometeor fronts, drifting derelicts, convoys and market shocks. Security answers raids; scavengers chase wrecks.</td></tr>
+ <tr><td>Survival</td><td>Dry tanks or a dead hull? Recovery tow from pause, or insurance. Cargo spills physically — scoop it fast.</td></tr></table>
+</div></div></div>
+<div class="ov end" id="deathO"><div class="sheet"><header><h2>SIGNAL LOST</h2></header>
+ <p>Hull integrity zero. Keres Mutual policy 7-C covers one recovery tow. The belt keeps what you were carrying.</p>
+ <div class="stats" id="dStats"></div><div class="menu"><button id="respawn">ACCEPT RECOVERY · −15% CREDITS · +800₡ FEE</button></div></div></div>
+<div class="ov end" id="winO"><div class="sheet"><header><h2>LEDGER CLEARED</h2></header>
+ <p>25,000₡ wired to the Cooperative. The debt is ash. The belt doesn't care — but the bar at Anchor knows your name now.</p>
+ <div class="stats" id="wStats"></div><div class="menu"><button id="keep">KEEP FLYING</button></div></div></div>
+<div class="ov" id="stationO"><div class="sheet"><header><h2 id="sName">STATION</h2><span id="sFac" style="font-size:9px;color:var(--dim)"></span>
+ <button class="x" id="undock" style="width:auto;padding:0 10px;font-size:9px">UNDOCK</button><button class="x" id="sX">✕</button></header>
+ <div class="tabs"><button data-t="market" class="act">MARKET</button><button data-t="service">SERVICES</button><button data-t="jobs">JOBS</button><button data-t="bar">BAR</button></div>
+ <div class="body" id="pBody"></div></div></div>
+<div class="ov" id="dialogO"><div class="sheet"><div id="dHead"><canvas id="face" width="28" height="28"></canvas><div><div id="dName">—</div><div id="dRole">—</div></div></div>
+ <div id="dText">—</div><div id="dCh"></div></div></div>
+<div class="ov" id="mapO"><div class="sheet"><header><h2>SECTOR CHART · K-9</h2><button class="x" id="mapX">✕</button></header>
+ <div class="body"><canvas id="chart" width="840" height="630"></canvas></div><div style="font-size:9px;color:var(--dim);padding:8px 14px">tap chart: nav waypoint · amber: stations · magenta: resolved anomalies</div></div></div>
+<div class="ov" id="confirmO"><div class="sheet"><div id="cText">—</div><div id="cRow"><button id="cNo">CANCEL</button><button id="cYes">CONFIRM</button></div></div></div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
