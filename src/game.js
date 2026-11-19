@@ -17,7 +17,7 @@ import { IN } from './input.js';
 import { AU } from './audio.js';
 import { toast, mode, openStation, closeStation, closeDialog, confirmBox, panel, hudDOM, statGrid, setSaver } from './ui.js';
 import { V, resize, chart } from './render/render.js';
-import { AP, apSet } from './ai/pilot.js';
+import { AP, apSet, apAbort } from './ai/pilot.js';
 
 const KEY = 'keres9_moon2035_v1';
 
@@ -167,6 +167,7 @@ export function respawn() {
   if (G.crew && G.crew.state !== 'idle') { G.crew.late = true; }
   wakeAtHome();
   PC.scan = false; PC.match = false; PC.assist = null; $('scan').classList.remove('on');
+  apAbort(AP.on ? 'Woke up in the HAB 14 medbay — starting the day over.' : null);
   mode('play'); toast('MEDBAY, HAB 14 · −15% credits. Your ships are where you left them.', 'warn');
   save();
 }

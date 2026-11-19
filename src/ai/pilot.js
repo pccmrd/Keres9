@@ -611,6 +611,8 @@ function* cutCore(c) {
       if (!pl.dock) break;
       sT += NAV.dt; if (PC.scan && sT > 0.5) { press('scan'); sT = 0; } // the laser is interlocked with the array
       inp.mine = true;
+      // keep the bore on the shard: slew the anchored nose so the laser MOUNT points straight at it
+      { const m = alive(pl, 'mine')[0], o = m ? mw(pl, m) : pl, er = ad(Math.atan2(sh.y - o.y, sh.x - o.x), pl.a); inp.rx = Math.abs(er) < 0.012 ? 0 : Math.sign(er) * cl(Math.abs(er) * 4, 0.25, 1); }
       const d = hy(sh.x - pl.x, sh.y - pl.y);
       // beam runs past the shard without hitting rock = the tunnel is through; give the tractor time
       if (pl.beam && !pl.beam.hit && hy(pl.beam.x1 - pl.beam.x0, pl.beam.y1 - pl.beam.y0) > d) open += NAV.dt; else open = 0;
@@ -618,7 +620,7 @@ function* cutCore(c) {
       if (open > 12) break;              // open line but nothing coming: the shard moved — re-perch on it
       yield;
     }
-    inp.mine = false;
+    inp.mine = false; inp.rx = 0;
     yield* until(got, 6);
     if (!got()) yield* undockShip();
   }
@@ -779,6 +781,12 @@ function* mineRunOn(b, want) {
   yield* undockShip();
 }
 
+/** the player died / was rescued: whatever we were doing belongs to the old suit — drop it and re-plan from the bed in HAB 14 */
+export function apAbort(why) {
+  if (AP.task) { try { AP.task.it.return(); } catch (_) { /* */ } }
+  AP.task = null; resetInp(); AP.wantWarp = false;
+  if (why) log(why);
+}
 function setTask(name, it) {
   if (AP.task) { try { AP.task.it.return(); } catch (_) { /* */ } }
   AP.task = { name, it, t0: W.time };
@@ -860,9 +868,9 @@ export function apSet(on, demo) {
   }
 }
 /** debug hook: force a task by name */
-export function apForce(n) {
-  const m = { shift: crewShift, catalog: catalogOffice, launch, flight };
+export function apForce(n, arg) {
+  const m = { shift: crewShift, catalog: catalogOffice, launch, flight, core: cutCore, scan: deepScan };
   if (!m[n]) return false;
-  setTask(n, m[n]()); return true;
+  setTask(n, m[n](arg)); return true;
 }
 export { alive, ca, near, engineOK };

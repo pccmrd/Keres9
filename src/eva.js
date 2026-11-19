@@ -3,7 +3,7 @@ import { hy, cl, ad, rr } from './core/util.js';
 import { C, GD, gacc, geff, MAT } from './core/config.js';
 import { W, G, pl, ev, setEv, setPl, PC, CTL, cam } from './core/state.js';
 import { near, ca, cw, collide, cut, ray, solidAt } from './world/body.js';
-import { ground } from './world/moon.js';
+import { ground, surfR } from './world/moon.js';
 import { cadd, cmass } from './ships.js';
 import { spill } from './combat.js';
 import { gas, sparks, dust } from './fx.js';
@@ -132,7 +132,9 @@ export function stepEVA(dt) {
   // stick is screen-frame; rotate into the world
   const cr = Math.cos(cam.rot), sr = Math.sin(cam.rot), wx = CTL.lx * cr - CTL.ly * sr, wy = CTL.lx * sr + CTL.ly * cr, al = hy(wx, wy);
   const onFloor = e.grounded > 0;
-  if (g > 0.4) {
+  // walking rules only near the regolith: the low band also pulls > 0.4 m/s², and there you need the jetpack, not your feet
+  const nearGround = r - surfR(Math.atan2(e.y, e.x)) < 60;
+  if (g > 0.4 && nearGround) {
     // surface mode: walk along the regolith / deck, W fires the jets for a hop, air control is weak
     const tx = -uy, ty = ux, vt = e.vx * tx + e.vy * ty, vr = e.vx * ux + e.vy * uy, want = CTL.lx * C.EVA.walk * (e.carry ? 0.7 : 1);
     if (onFloor || Math.abs(CTL.lx) > 0.1) { const acc = onFloor ? 40 : 7, dv = cl(want - vt, -acc * dt, acc * dt); e.vx += tx * dv; e.vy += ty * dv; }
@@ -147,7 +149,7 @@ export function stepEVA(dt) {
     if (rvx * dx + rvy * dy < 30) { e.vx += dx * a * Math.min(1, al) * dt; e.vy += dy * a * Math.min(1, al) * dt; }
     e.jet = 0.15;
     if (R() < 0.25) gas(e.x - wx * 3, e.y - wy * 3, e.vx - wx * 25, e.vy - wy * 25);
-  } else if (g < 0.8) {
+  } else if (g < 0.8 || !nearGround) {
     // SAFER hold: with the stick released the suit nulls drift against the nearest body
     let rvx = e.vx, rvy = e.vy;
     const nb = near(e.x, e.y, 60)[0]; if (nb) { rvx -= nb.vx || 0; rvy -= nb.vy || 0; }
@@ -161,7 +163,7 @@ export function stepEVA(dt) {
   collide(e, 2.6, (im, x, y) => { if (im > 7) { e.suit -= (im - 7) * 3; sparks(x, y, 3, '#a8ecff', 40); AU.thunk(); } });
   const gc = ground(e, 2.6, dt, 0.1, onFloor && Math.abs(CTL.lx) < 0.1 ? 9 : 0.6);
   if (gc) { e.grounded = 0.15; if (gc.im > 9) { e.suit -= (gc.im - 9) * 3; AU.thunk(); } }
-  if (g > 0.4 && solidAt(e.x - ux * 3.3, e.y - uy * 3.3)) {
+  if (g > 0.4 && nearGround && solidAt(e.x - ux * 3.3, e.y - uy * 3.3)) {
     e.grounded = 0.15;
     if (Math.abs(CTL.lx) < 0.1) { const tx = -uy, ty = ux, vt = e.vx * tx + e.vy * ty, k = 1 - Math.exp(-9 * dt); e.vx -= tx * vt * k; e.vy -= ty * vt * k; }
   }

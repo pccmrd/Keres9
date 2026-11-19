@@ -163,7 +163,8 @@ export function suitHop(tx, ty) {
 /** jetpack / walk toward a point; returns the remaining distance */
 export function jetTo(x, y, vmax = 8, ref = null) {
   const dx = x - ev.x, dy = y - ev.y, d = hy(dx, dy) || 0.001, r = hy(ev.x, ev.y), ux = ev.x / r, uy = ev.y / r;
-  if (geff(r) > 0.4) {
+  // (strong-gravity test alone is not enough: the low band also pulls > 0.4 m/s², and "walking" there is free fall)
+  if (geff(r) > 0.4 && r - surfR(Math.atan2(ev.y, ev.x)) < 40) {
     // surface mode: walk along the regolith; hop when the target is above us or we are stuck
     const along = dx * -uy + dy * ux, up = dx * ux + dy * uy;
     inp.lx = Math.abs(along) > 1.2 ? cl(along / 4, -1, 1) : 0;

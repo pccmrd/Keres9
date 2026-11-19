@@ -163,6 +163,11 @@ export function stepPicks(dt) {
     if (pl && !pl.dead && !ev && GD[p.type] && GD[p.type].story && (!pl.dock || pl.dock.ty === 'anchor')) {
       const dx = pl.x - p.x, dy = pl.y - p.y, d = hy(dx, dy);
       if (d < 75 && d > 1) { const h = ray(p.x, p.y, dx / d, dy / d, Math.max(0, d - pl.rad)); beamed = !h || h.b === pl; }
+      // …or a clear line down the bore to the laser mount itself (the bore starts there, off the hull centreline)
+      if (!beamed && d < 75) {
+        const m = alive(pl, 'mine')[0];
+        if (m) { const o = mw(pl, m), mx = o.x - p.x, my = o.y - p.y, md = hy(mx, my); if (md > 1) { const h = ray(p.x, p.y, mx / md, my / md, Math.max(0, md - 2)); beamed = !h || h.b === pl; } }
+      }
     }
     if (!beamed) collide(p, p.r, null);
     if (ground(p, p.r, dt, 0.2, 4)) p.va *= 0.9;
