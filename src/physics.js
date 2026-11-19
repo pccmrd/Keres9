@@ -159,14 +159,14 @@ export function stepPicks(dt) {
     p.x += p.vx * dt; p.y += p.vy * dt; p.a += p.va * dt;
     // a core shard in tractor range with a clear line to the ship rides the beam out of a 1-cell laser bore
     // (it is wider than the bore, so colliding it would pin it at the tunnel mouth forever)
-    let beamed = false;
+    let beamed = false, px = pl ? pl.x : 0, py = pl ? pl.y : 0;   // tractor aim point
     if (pl && !pl.dead && !ev && GD[p.type] && GD[p.type].story && (!pl.dock || pl.dock.ty === 'anchor')) {
       const dx = pl.x - p.x, dy = pl.y - p.y, d = hy(dx, dy);
       if (d < 75 && d > 1) { const h = ray(p.x, p.y, dx / d, dy / d, Math.max(0, d - pl.rad)); beamed = !h || h.b === pl; }
       // …or a clear line down the bore to the laser mount itself (the bore starts there, off the hull centreline)
       if (!beamed && d < 75) {
         const m = alive(pl, 'mine')[0];
-        if (m) { const o = mw(pl, m), mx = o.x - p.x, my = o.y - p.y, md = hy(mx, my); if (md > 1) { const h = ray(p.x, p.y, mx / md, my / md, Math.max(0, md - 2)); beamed = !h || h.b === pl; } }
+        if (m) { const o = mw(pl, m), mx = o.x - p.x, my = o.y - p.y, md = hy(mx, my); if (md > 1) { const h = ray(p.x, p.y, mx / md, my / md, Math.max(0, md - 2)); beamed = !h || h.b === pl; if (beamed) { px = o.x; py = o.y; } } }   // reel it straight up the bore, not sideways into the wall
       }
     }
     if (!beamed) collide(p, p.r, null);
@@ -180,8 +180,9 @@ export function stepPicks(dt) {
       const d = hy(p.x - pl.x, p.y - pl.y);
       const tr = GD[p.type] && GD[p.type].story ? 75 : 24;   // story items (core shards) ping the ship's tractor from deep in a tunnel
       if (d < tr && cmass(pl) < pl.cargoMax && GD[p.type]) {
-        const k = (140 * dt) / Math.max(6, d);
-        p.vx += (pl.x - p.x) * k; p.vy += (pl.y - p.y) * k;
+        const pd = hy(px - p.x, py - p.y), k = (140 * dt) / Math.max(6, pd);
+        p.vx += (px - p.x) * k; p.vy += (py - p.y) * k;
+        if (px !== pl.x) { const vx = p.vx - pl.vx, vy = p.vy - pl.vy, ux = (px - p.x) / (pd || 1), uy = (py - p.y) / (pd || 1), vs = vx * -uy + vy * ux; p.vx -= -uy * vs; p.vy -= ux * vs; }   // no sideways slip inside the bore
         if (d < 7) {
           const t = cadd(pl, p.type, p.qty);
           if (t > 0) { p.qty -= t; if (p.qty <= 0) p.dead = true; AU.blip(); hooks.toast('SCOOPED ' + t + ' ' + GD[p.type].n); }
