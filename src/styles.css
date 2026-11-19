@@ -73,7 +73,7 @@ button:disabled{opacity:.32;pointer-events:none}
 #ctx.ready{border-color:var(--green);color:var(--green);animation:cp 1.2s infinite}
 @keyframes cp{50%{box-shadow:0 0 22px rgba(109,240,143,.5)}}
 #alt{width:82px;height:28px;font-size:8px;display:none}#alt.on{display:block}
-.row3{display:flex;gap:7px}#fireB{color:#ffb0a8;border-color:#7d3a34}
+.row3{display:flex;gap:7px}
 #scanB.act,#gear.act,#match.act{border-color:var(--cyan);color:var(--cyan)}
 .ov{position:absolute;inset:0;z-index:10;display:none;align-items:center;justify-content:center;background:rgba(3,6,10,.66);pointer-events:auto}
 .ov.on{display:flex}

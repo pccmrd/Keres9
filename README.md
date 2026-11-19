@@ -120,7 +120,7 @@ What it does:
 | W A S D | RCS translate (screen-relative); on the ground A/D walk, W hops |
 | Q / E | turn |
 | Shift / Ctrl | throttle up / down |
-| M | mining laser / suit cutter |
+| M or Space | mining laser / suit cutter (hold) |
 | F | use: context action (terminal, lift, dock, land, harpoon, board) |
 | V | alt: suit scanner ping on EVA; SAS (UP / RETRO / PRO) in flight |
 | X | match target velocity |

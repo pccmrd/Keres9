@@ -9,9 +9,9 @@ import { steer, detour, standoff } from '../autop.js';
 import { inBody } from '../eva.js';
 import { IN } from '../input.js';
 
-export const inp = { lx: 0, ly: 0, rx: 0, ry: 0, thr: 0, fire: false, mine: false, brake: false, ai: true };
+export const inp = { lx: 0, ly: 0, rx: 0, ry: 0, thr: 0, mine: false, brake: false, ai: true };
 export const NAV = { dt: 1 / 60, t: 0, flight: null };
-export function resetInp() { inp.lx = inp.ly = inp.rx = inp.ry = inp.thr = 0; inp.fire = inp.mine = inp.brake = false; }
+export function resetInp() { inp.lx = inp.ly = inp.rx = inp.ry = inp.thr = 0; inp.mine = inp.brake = false; }
 export const press = e => IN.edge.push(e);
 
 /** world vector → screen-frame stick (the camera rotates with local up) */

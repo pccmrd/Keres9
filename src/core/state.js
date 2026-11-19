@@ -23,7 +23,7 @@ export const PC = {
 };
 
 /** the control frame obeyed this tick — filled from human input or the AI pilot (stick axes are SCREEN-frame) */
-export const CTL = { lx: 0, ly: 0, rx: 0, ry: 0, thr: 0, fire: false, mine: false, brake: false, ai: false };
+export const CTL = { lx: 0, ly: 0, rx: 0, ry: 0, thr: 0, mine: false, brake: false, ai: false };
 
 /** whatever the camera and HUD should follow: suit, ship, or the vehicle the player rides */
 export const focus = () => ev || pl || (G && G.ride && G.ride.v) || null;
