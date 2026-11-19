@@ -249,7 +249,19 @@ function* sellSack(st) {
 function* undockShip() {
   if (!pl.dock) return;
   yield* closePanel();
-  if (pl.dock.ty === 'pad' && pl.tailLand || pl.dock.ty === 'ground') return;   // lift-off is the throttle
+  if (pl.dock.ty === 'pad' && pl.tailLand || pl.dock.ty === 'ground') {
+    // lift-off is the throttle. Down the well launch() flies the climb; on a station pad in the band
+    // just arm (throttle to zero while clamped), ease off the pad and drift clear
+    if (pl.dock.ty === 'pad' && pl.dock.b && !pl.dock.b.surf) {
+      act('UNDOCK'); say('Easing the HARE off the ' + pl.dock.b.name + ' pad.');
+      yield* until(() => PC.thrArm, 1.5, () => { inp.thr = 0; });
+      yield* until(() => !pl.dock, 3, () => { inp.thr = 0.3; });
+      const px = pl.x, py = pl.y;
+      yield* until(() => hy(pl.x - px, pl.y - py) > 30, 6, () => { inp.thr = 0.25; });
+      inp.thr = 0;
+    }
+    return;
+  }
   yield* until(() => ['undock', 'release'].includes(PC.alt && PC.alt.k), 2);
   press('alt'); yield* until(() => !pl.dock, 2);
   // back away from whatever we were attached to
@@ -677,7 +689,8 @@ function* flight() {
     const st = s.dock.b;
     if (st && st.tabs && st.tabs.length && !AP.didHere) {
       AP.didHere = true;
-      if (ctxK() === 'services') { press('ctx'); yield* until(stationOpen, 2); }
+      yield* until(() => ctxK() === 'services' || stationOpen(), 1.5);   // HUD context lags a frame after a tow / fresh dock
+      if (ctxK() === 'services' && !stationOpen()) { press('ctx'); yield* until(stationOpen, 2); }
       if (stationOpen()) {
         yield* officeTab(st);
         yield* sellAll('core'); yield* service(st); yield* takeJobs(st); yield* closePanel();
@@ -784,7 +797,7 @@ function* mineRunOn(b, want) {
 /** the player died / was rescued: whatever we were doing belongs to the old suit — drop it and re-plan from the bed in HAB 14 */
 export function apAbort(why) {
   if (AP.task) { try { AP.task.it.return(); } catch (_) { /* */ } }
-  AP.task = null; resetInp(); AP.wantWarp = false;
+  AP.didHere = false; AP.task = null; resetInp(); AP.wantWarp = false;
   if (why) log(why);
 }
 function setTask(name, it) {
@@ -830,7 +843,7 @@ export function apMeta(dt) {
   if (G.mode === 'pause' && G.autoPaused && !document.hidden) { G.autoPaused = false; mode('play'); }
   if (G.mode === 'pause' && AP.towing) {
     AP.towT += dt; $('tow').classList.toggle('aiPick', AP.towT > 0.8);
-    if (AP.towT > 2) { AP.towing = false; $('tow').classList.remove('aiPick'); AP.task = null; $('tow').click(); }
+    if (AP.towT > 2) { AP.towing = false; $('tow').classList.remove('aiPick'); AP.task = null; AP.didHere = false; resetInp(); $('tow').click(); }   // towed to a berth: do business there (refuel!) before flying again
   }
   if ($('dialogO').classList.contains('on')) { AP.dlgT = (AP.dlgT || 0) + dt; if (AP.dlgT > 6) { closeDialog(); AP.dlgT = 0; } } else AP.dlgT = 0;
   // camera director: zoom out for flight, in for EVA
