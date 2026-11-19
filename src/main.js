@@ -28,6 +28,7 @@ import { eventsInit } from './events.js';
 import { newGame } from './missions.js';
 import { AP, apThink, apMeta, apForce } from './ai/pilot.js';
 import { inp } from './ai/nav.js';
+const STICK = ['lx', 'ly', 'rx', 'ry', 'thr'], nanT = {};   // NaN guard for the AI's virtual sticks
 
 // ─── late-bound hooks ────────────────────────────────────────────────────
 hooks.toast = (m, k) => toast(m, k);
@@ -117,6 +118,7 @@ function tick(dt) {
           if (grab > 0.3) { grab = 0; toggleAI(); Object.assign(CTL, HUM); }
           else Object.assign(CTL, inp);
           CTL.ai = AP.on;
+          for (const k of STICK) if (!Number.isFinite(CTL[k])) { if (W.time - (nanT[k] || -1e9) > 60) { nanT[k] = W.time; console.warn('AI stick ' + k + ' is ' + CTL[k] + ' during ' + (AP.task && AP.task.name) + ' / ' + AP.act); } CTL[k] = inp[k] = 0; }
         } else Object.assign(CTL, HUM);
         control(dt);
       }

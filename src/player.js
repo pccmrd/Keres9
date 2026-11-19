@@ -48,6 +48,12 @@ export function updCam(dt) {
   // turn the view so "up" (away from the Moon) is always screen-up
   const want = Math.atan2(cam.y, cam.x) + Math.PI / 2;
   cam.rot = an(cam.rot + ad(want, cam.rot) * (1 - Math.exp(-3 * dt)));
+  // never let one bad frame poison the camera: a NaN rot makes every stick input NaN (the suit freezes in place)
+  if (!Number.isFinite(cam.x + cam.y + cam.rot)) {
+    console.warn('camera went non-finite — re-centring', JSON.stringify({ x: cam.x, y: cam.y, rot: cam.rot, fx: f.x, fy: f.y, fvx: f.vx, fvy: f.vy, aux: cam.aux || null }));
+    const ok = Number.isFinite(f.x + f.y);
+    cam.x = ok ? f.x : 0; cam.y = ok ? f.y : -C.RM; cam.aux = null; cam.rot = Math.atan2(cam.y, cam.x) + Math.PI / 2;
+  }
   cam.lt -= dt;
   if (cam.lt <= 0) { const q = 1 - Math.exp(-2.4 * dt); cam.lx = lp(cam.lx, 0, q); cam.ly = lp(cam.ly, 0, q); }
   if (cam.user > 0) cam.user -= dt; else cam.tz = autoZoom(f);

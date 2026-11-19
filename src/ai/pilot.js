@@ -4,7 +4,7 @@
 // Each "act" is a generator that runs one frame per `yield`.
 import { $, cl, hy, ad, fm, TAU } from '../core/util.js';
 import { C, GD, MAT, CLS } from '../core/config.js';
-import { W, G, pl, ev, cam, PC } from '../core/state.js';
+import { W, G, pl, ev, cam, PC, CTL } from '../core/state.js';
 import { ca, cw, near, ray } from '../world/body.js';
 import { SITES } from '../world/gen.js';
 import { cmass, integ, alive, mw } from '../ships.js';
@@ -63,6 +63,7 @@ const reserve = () => {
 // ─── EVA acts ────────────────────────────────────────────────────────────
 function* walkTo(x, y, tol = 3, secs = 150, ref = null) {
   let path = null, i = 0, rt = 0, best = 1e9, bestT = 0, ax = ev ? ev.x : 0, ay = ev ? ev.y : 0, aT = 0, kick = 0, kicks = 0, kx = 0, ky = 0;
+  const x0 = ev ? ev.x : 0, y0 = ev ? ev.y : 0;
   for (let t = 0; t < secs; t += NAV.dt) {
     if (!ev || ev.hide) return false;
     const d = hy(x - ev.x, y - ev.y);
@@ -75,6 +76,7 @@ function* walkTo(x, y, tol = 3, secs = 150, ref = null) {
       let bd = -1;
       for (let k = 0; k < 16; k++) { const a = (k / 16) * TAU, ux = Math.cos(a), uy = Math.sin(a), h = ray(ev.x, ev.y, ux, uy, 20), f = (h ? h.d : 20) + (ux * (x - ev.x) + uy * (y - ev.y)) / d * 3; if (f > bd) { bd = f; kx = ux; ky = uy; } }
       kick = 0.45; aT = t; path = null; log('suit pinned — kicking free');
+      if (kicks === 3 && hy(ev.x - x0, ev.y - y0) < 0.05) log('suit has not moved at all: ' + JSON.stringify({ x: +ev.x.toFixed(2), y: +ev.y.toFixed(2), vx: ev.vx, vy: ev.vy, lx: CTL.lx, ly: CTL.ly, rot: cam.rot, g: ev.grounded, hide: ev.hide }));
     }
     if (kick > 0) { kick -= NAV.dt; if (hy(ev.vx, ev.vy) < 5) stickW(kx, ky); yield; continue; }   // short and gentle: suits take damage over 7 m/s
     if ((rt -= NAV.dt) <= 0 || !path) { path = evaRoute(x, y); i = 0; rt = 1.6; }
