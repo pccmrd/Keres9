@@ -119,7 +119,7 @@ export function buyShip(st, cls) {
   if (G.cr < K.price) { hooks.toast('Not enough credits', 'bad'); return null; }
   let P = null;
   if (cls === 'hare') P = { p: st.pads.find(q => !q.occ) || st.pads[0], ty: 'pad' };
-  else P = { p: st.ports.find(q => q.berth && !q.occ) || st.ports.find(q => !q.occ), ty: 'port' };
+  else P = { p: st.ports.find(q => q.berth && !q.occ) || st.ports.find(q => !q.occ && !q.crew), ty: 'port' };
   if (!P.p || P.p.occ) { hooks.toast('No free berth — clear the pad first', 'bad'); return null; }
   G.cr -= K.price;
   const s = mkOwned(cls, st.x, st.y);

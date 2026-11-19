@@ -18,6 +18,7 @@ export const MATES = [{ n: 'Dagny Okafor', c: '#ffb347' }, { n: 'Tomas Reyes', c
 export function crewInit() {
   const st = SITES.sel, p = st.ports[2];
   const s = mkShip('mule', 'crew', 'MULE-3', st.x - 200, st.y);
+  p.crew = true;   // MULE-3's home berth: the shipyard never parks a sale here
   dock(s, st, p, 'port', true);
   s.crewShuttle = true;
   G.crew = { state: 'idle', site: null, t: 0, haul: {}, mates: {}, mine: 0, ship: s, ap: {}, wait: 0, horn: false, shifts: G.crew ? G.crew.shifts : 0 };
@@ -173,13 +174,15 @@ export function crewTick(dt) {
       if (matesIn && (!ev || ev.hide)) { c.legT = 0; c.state = 'back'; W.suits = []; undock(s); hooks.toast('MULE-3 · heading home to SELENE HIGH', 'good'); }
     }
   } else if (c.state === 'back') {
-    const p = st.ports[2], pw = cw(st, p.cx, p.cy), app = { x: pw.x - 26, y: pw.y };
+    // home berth, unless someone is sitting in it — then any free port (never shove a parked ship off)
+    if (!c.home || (c.home.occ && c.home.occ !== s)) c.home = [st.ports[2], ...st.ports].find(q => !q.occ || q.occ === s) || st.ports[2];
+    const p = c.home, pw = cw(st, p.cx, p.cy), out = p.cx < st.gw / 2 ? -26 : 26, app = { x: pw.x + Math.cos(st.a) * out, y: pw.y + Math.sin(st.a) * out };
     const wp = detour(s.x, s.y, app.x, app.y, 16, st);
     const t = steer(s, wp ? wp.x : app.x, wp ? wp.y : app.y, { vmax: 40, out: ap, face: wp ? null : 0 });
     applyOut(s, ap);
     c.legT = (c.legT || 0) + dt;
     // Lu always gets home: after a long wobble, SELENE traffic control tractors her in
-    if ((!wp && t.d < 8 && t.rv < 1) || c.legT > 140) { c.legT = 0; if (p.occ && p.occ !== s) p.occ = null; dock(s, st, p, 'port', true); payout(c); }
+    if ((!wp && t.d < 8 && t.rv < 1) || c.legT > 140) { c.legT = 0; c.home = null; if (!p.occ || p.occ === s) dock(s, st, p, 'port', true); payout(c); }
   } else if (c.state === 'idle') { s.thr = s.rcx = s.rcy = s.tqi = 0; }
 }
 /** player climbs back in at the site */

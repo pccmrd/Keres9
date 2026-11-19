@@ -62,6 +62,10 @@ Story steps:
 14. file the claim at the Catalog Office
 15. free prospector
 
+**Core shards can't be lost for good.** The story needs 3, and the world starts with exactly 3. If one is lost (sold, left drifting, or gone with a wreck), the Catalog Office soon picks up another sealed lattice in some uncatalogued rock, and a message appears in the feed.
+
+**Solar storms** come with a 40-second warning. During a storm, suit air outside drains 3.5× faster, so get under a roof: a pressurised room or right beside your ship or the MULE.
+
 The contract boards keep the work coming: survey jobs, delivery runs, and up-well runs from the surface to SELENE HIGH.
 
 Upgrades for sale:
@@ -78,7 +82,9 @@ What it does:
 
 - **On foot and EVA:**
   - Walks between rooms with path-finding and rides the lift.
-  - On crew shifts, it surveys with the hand scanner, cuts ore, tops up its air and stows the sack before the horn.
+  - On crew shifts, it surveys with the hand scanner, cuts ore, and stows the sack before the horn. It heads back for air while there's still enough left for the trip to the MULE.
+  - When a solar-storm warning sounds, it shelters at the MULE until the storm passes.
+  - In open space it steps around rocks and station hulls, keeping close to the real surface, instead of pushing straight into them.
   - Boards ships as soon as the BOARD prompt is live.
 - **Flight** (a gravity-aware autopilot, `src/autop.js`, which NPC traffic also uses):
   - Plans detours around rocks.
@@ -181,6 +187,12 @@ scripts/fast-sim.mjs  headless soak test (see below)
 
 ```sh
 node scripts/fast-sim.mjs 3600 60 http://localhost:8080/?demo > run.log
+```
+
+`scripts/check-imports.mjs` checks every module's imports without a browser. It runs Node's real module linker over `src/` but never executes the code, so a missing export, a typo'd import name or a bad path fails exactly as it would in the browser:
+
+```sh
+node --experimental-vm-modules scripts/check-imports.mjs
 ```
 
 Status: in headless runs the AI has made it from a fresh career into the WREN tier. Runs started at story step 11 (pad to orbit) have finished the career (tiers 2 and 3, through filing the Orphan claim). Runs are not deterministic, so tuning is still going on.

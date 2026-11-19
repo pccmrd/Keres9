@@ -20,7 +20,7 @@ import { AU, initAudio } from './audio.js';
 import { toast, closeStation, frozen, mode, hudDOM, openStation, showWin } from './ui.js';
 import { resize, render, chart, spectrum, scopeDraw } from './render/render.js';
 import { bindUI, syncSound, readSave, playerDied, startDemo, toggleAI, globalEdges, titleCam, newRun, save } from './game.js';
-import { genWorld, SITES } from './world/gen.js';
+import { genWorld, SITES, ensureShards } from './world/gen.js';
 import { liftInit } from './lift.js';
 import { crewInit } from './crew.js';
 import { initAgents } from './agents.js';
@@ -71,6 +71,8 @@ function simTick(dt) {
   G._j = (G._j || 0) + dt;
   if (G._j > 180) { G._j = 0; for (const st of W.stations) if (st.econ) mkJobs(st); }
   if (G.mode !== 'play') return;
+  G._sh = (G._sh || 0) + dt;
+  if (G._sh > 30) { G._sh = 0; const nb = ensureShards(); if (nb) feed('Catalog Office: the array net caught another cold memory lattice — sealed inside ' + nb.name + '.', 'good'); }
   if (pl && pl.dead) playerDied('Your ' + pl.name + ' broke up.');
   // story sensors
   if (ev && !ev.hide && ((G._rm = (G._rm || 0) + dt) > 0.4)) { G._rm = 0; const r = evaRoom(); if (r && r.rm) story('room', { kind: r.rm.kind, b: r.b }); }

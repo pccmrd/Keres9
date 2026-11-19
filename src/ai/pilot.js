@@ -68,17 +68,17 @@ function* walkTo(x, y, tol = 3, secs = 150, ref = null) {
     const d = hy(x - ev.x, y - ev.y);
     if (d < tol) return true;
     if (d < best - 1) { best = d; bestT = t; }
-    // pinned against structure well short of the goal (no real displacement for 4 s, free-space walk only): kick out along the freest direction, then re-route
+    // pinned against structure well short of the goal (no real displacement for 4 s, ): kick out along the freest direction, then re-route
     if (hy(ev.x - ax, ev.y - ay) > 0.5) { ax = ev.x; ay = ev.y; aT = t; }
-    else if (t - aT > 4 && kick <= 0 && !ref && d > tol + 6 && kicks < 3) {
+    else if (t - aT > 4 && kick <= 0 && d > tol + 6 && kicks < 3) {
       kicks++;
       let bd = -1;
       for (let k = 0; k < 16; k++) { const a = (k / 16) * TAU, ux = Math.cos(a), uy = Math.sin(a), h = ray(ev.x, ev.y, ux, uy, 20), f = (h ? h.d : 20) + (ux * (x - ev.x) + uy * (y - ev.y)) / d * 3; if (f > bd) { bd = f; kx = ux; ky = uy; } }
-      kick = 1.2; aT = t; path = null; log('suit pinned — kicking free');
+      kick = 0.45; aT = t; path = null; log('suit pinned — kicking free');
     }
-    if (kick > 0) { kick -= NAV.dt; stickW(kx, ky); yield; continue; }
+    if (kick > 0) { kick -= NAV.dt; if (hy(ev.vx, ev.vy) < 5) stickW(kx, ky); yield; continue; }   // short and gentle: suits take damage over 7 m/s
     if ((rt -= NAV.dt) <= 0 || !path) { path = evaRoute(x, y); i = 0; rt = 1.6; }
-    while (i < path.length - 1 && hy(path[i].x - ev.x, path[i].y - ev.y) < 2.6) i++;
+    while (i < path.length - 1 && hy(path[i].x - ev.x, path[i].y - ev.y) < 2.6) { i++; if (path.hop) rt = 0; }
     jetTo(path[i].x, path[i].y, i === path.length - 1 ? 7 : 9, ref);
     if (t - bestT > 25) return false;   // not getting anywhere
     yield;
@@ -176,15 +176,30 @@ function* crewShift() {
     press('scan'); yield* wait(1);
   }
   const full = () => sackN(ev) >= Math.floor(C.EVA.sack * (G.sackUp || 1)) - 1;
+  // seconds of air left vs. the trip back (routes bend round the rock, so pad it generously)
+  const storm = () => !!(W.flare && (W.flare.on || W.flare.warn > 0));   // warning counts: 40 s to get under the MULE's roof
+  const airLow = () => ev.suit * C.EVA.air * (G.airUp || 1) / 100 / (storm() ? 3.5 : 1) < hy(ev.x - s.x, ev.y - s.y) / 4 + 30;
   while (c.state === 'site' && !c.horn && ev && !ev.hide) {
-    yield* evaCut(site, s, () => full() || c.horn || ev.suit < 30);
+    yield* evaCut(site, s, () => full() || c.horn || airLow() || storm() || hy(ev.x - s.x, ev.y - s.y) > 160);
     if (!ev || ev.hide) break;
+    if (hy(ev.x - s.x, ev.y - s.y) > 160) { log(`drifted ${Math.round(hy(ev.x - s.x, ev.y - s.y))} m from MULE-3 — jetting back`); yield* walkTo(s.x, s.y, 9, 90, s); }
+    if (storm()) {
+      // proton storm: the MULE's hull is the only shelter — stay inside its air radius until it blows over
+      say('Proton storm — sheltering at the MULE until it passes.');
+      if (hy(ev.x - s.x, ev.y - s.y) > 9) yield* walkTo(s.x, s.y, 8, 40, s);
+      yield* until(() => !storm() || c.horn || !ev || ev.hide, 240, () => jetTo(s.x, s.y, 2, s));
+      continue;
+    }
     yield* stowAt(s);
-    if (ev.suit < 30) { say('Air low — topping up at the MULE.'); yield* until(() => ev.suit > 90 || c.horn, 12, () => jetTo(s.x, s.y, 2, s)); }
+    if (ev && !ev.hide && ev.suit < 60) {
+      say('Air low — topping up at the MULE.');
+      if (hy(ev.x - s.x, ev.y - s.y) > 10) yield* walkTo(s.x, s.y, 8, 40, s);
+      yield* until(() => ev.suit > 95 || c.horn, 8, () => jetTo(s.x, s.y, 2, s));
+    }
   }
   say('SHIFT HORN. Back to the hatch before Lu reels us in.');
   if (ev && !ev.hide) {
-    yield* walkTo(s.x, s.y, 9, 40, s);
+    yield* walkTo(s.x, s.y, 9, 60, s);
     yield* until(() => ctxK() === 'crewboard', 10, () => jetTo(s.x, s.y, 2, s));
     press('ctx');
   }
@@ -369,7 +384,7 @@ function* mineHere(stop) {
       let ba = null, bd = 9;
       for (let k = -12; k <= 12; k++) {
         const a = b.a + d.ao0 + k * 0.0625; if (Math.abs(k * 0.0625) > 0.75) continue;
-        const h = ray(o.x, o.y, Math.cos(a), Math.sin(a), C.MINE.rng);
+        const h = ray(o.x, o.y, Math.cos(a), Math.sin(a), (pl.lasR || C.MINE.rng));
         const e = Math.abs(ad(a, pl.a));
         if (h && h.b === b && e > 0.07 && e < bd) { bd = e; ba = a; }   // > 0.07: step past the 1-cell bore we already cut
       }
@@ -419,7 +434,8 @@ function* sellAll(keep) {
   yield* tab('market');
   yield* clickUI('#pBody button[data-a="qty"][data-q="MAX"]', 0.4);
   for (let k = 0; k < 8; k++) {
-    const b = [...document.querySelectorAll('#pBody button[data-a="sell"]')].find(x => !x.disabled && x.dataset.g !== keep);
+    // core shards are story cargo: never sold off while the Catalog Office still wants them
+    const b = [...document.querySelectorAll('#pBody button[data-a="sell"]')].find(x => !x.disabled && x.dataset.g !== keep && !(x.dataset.g === 'core' && G.cores < 3));
     if (!b) break;
     yield* clickUI(b, 0.5);
   }
@@ -532,7 +548,7 @@ function noseErr(t, kind = 'mine') {
   const m = alive(pl, kind)[0], o = m ? mw(pl, m) : pl;
   return Math.abs(ad(Math.atan2(t.y - o.y, t.x - o.x), pl.a));
 }
-function* perchFor(c, t = c, near = C.MINE.rng - 10) {
+function* perchFor(c, t = c, near = (pl && pl.lasR || C.MINE.rng) - 10) {
   const b = c.b;
   if (pl.dock && pl.dock.ty === 'anchor' && pl.dock.b === b && hy(t.x - pl.x, t.y - pl.y) < near && noseErr(t) < 0.25) return true;
   for (let k = 0; k < 2; k++) {

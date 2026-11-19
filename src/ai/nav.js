@@ -3,7 +3,7 @@
 import { cl, hy, ad } from '../core/util.js';
 import { C, gacc, geff } from '../core/config.js';
 import { W, pl, ev, cam } from '../core/state.js';
-import { cw, ca, near, portW, segBlock } from '../world/body.js';
+import { cw, ca, near, portW, segBlock, ray } from '../world/body.js';
 import { surfR } from '../world/moon.js';
 import { steer, detour, standoff } from '../autop.js';
 import { inBody } from '../eva.js';
@@ -137,9 +137,28 @@ export function evaRoute(tx, ty) {
     if (A) { const p = bfs(A, ev.x, ev.y, tx, ty, true, ok); if (!p) continue; path = p; }
     if (B) { const p = bfs(B, tx, ty, path.length ? path[path.length - 1].x : ev.x, path.length ? path[path.length - 1].y : ev.y, true, ok); if (!p) continue; path = path.concat(p.reverse()); }
     path.push({ x: tx, y: ty });
+    if (!A && !B) { const h = suitHop(tx, ty); if (h) { path.unshift(h); path.hop = true; } }
     return path;
   }
   return [{ x: tx, y: ty }];
+}
+/** open-space EVA: if rock sits between the suit and the goal, step round the body hugging its real surface */
+export function suitHop(tx, ty) {
+  const L = hy(tx - ev.x, ty - ev.y); if (L < 3) return null;
+  // ignore terrain right at the goal (a ship anchored on the face, a cut target)
+  const k = Math.max(0, L - 8) / L, blk = segBlock(ev.x, ev.y, ev.x + (tx - ev.x) * k, ev.y + (ty - ev.y) * k, 1);
+  if (!blk || inBody(ev.x, ev.y)) return null;   // outside only: inside a station the corridor BFS routes
+  const aE = Math.atan2(ev.y - blk.y, ev.x - blk.x), dA = ad(Math.atan2(ty - blk.y, tx - blk.x), aE), sg = Math.sign(dA) || 1;
+  const surf = a => { const R0 = blk.rad + 12, h = ray(blk.x + Math.cos(a) * R0, blk.y + Math.sin(a) * R0, -Math.cos(a), -Math.sin(a), R0); return h ? R0 - h.d : 0; };
+  for (const dir of [sg, -sg]) for (const st of [0.35, 0.2, 0.1]) {
+    const a = aE + dir * (dir === sg ? Math.min(Math.abs(dA), st) : st);
+    for (const off of [7, 14]) {
+      const r = Math.max(surf(a) + off, hy(ev.x - blk.x, ev.y - blk.y) * 0.6), wp = { x: blk.x + Math.cos(a) * r, y: blk.y + Math.sin(a) * r };
+      if (!segBlock(ev.x, ev.y, wp.x, wp.y, 1)) return wp;
+    }
+  }
+  // boxed in against the face: one short step straight out — but never keep stepping away into the void
+  return hy(ev.x - blk.x, ev.y - blk.y) < surf(aE) + 6 ? { x: ev.x + Math.cos(aE) * 6, y: ev.y + Math.sin(aE) * 6 } : null;
 }
 /** jetpack / walk toward a point; returns the remaining distance */
 export function jetTo(x, y, vmax = 8, ref = null) {

@@ -1,7 +1,7 @@
 // ═══ world generation: band bodies, settlements, orbital infrastructure ═
 import { TAU, cl, lp, hy, rng, pk, rr, ri, sh } from '../core/util.js';
 import { C, PAL, MAT } from '../core/config.js';
-import { W, setW } from '../core/state.js';
+import { W, setW, G, pl, ev } from '../core/state.js';
 import { body, mkc, cw, pR, pF } from './body.js';
 import { genMoon, surfR } from './moon.js';
 
@@ -387,7 +387,7 @@ export function genWorld(seed) {
     W.rocks.push(b);
   }
   // guarantee story contacts exist even if the random sizes skipped them
-  const need = (kind, n) => { let have = W.contacts.filter(c => c.kind === kind).length; for (const b of W.rocks) { if (have >= n) break; if (b.R < 20 || b.cham.some(q => q.biome === 'core' || q.biome === 'claim')) continue; W.contacts = W.contacts.filter(c => c.b !== b); W.picks = W.picks.filter(p => hy(p.x - b.x, p.y - b.y) > b.rad); /* clear the old rock's loot BEFORE the replacement adds its own */ const nb = mkRock(r, b.x, b.y, b.uid, b.R, b.type, { [kind]: true }); nb.va = b.va; W.rocks[W.rocks.indexOf(b)] = nb; have = W.contacts.filter(c => c.kind === kind).length; } };
+  const need = (kind, n) => { let have = W.contacts.filter(c => c.kind === kind).length; for (const b of W.rocks) { if (have >= n) break; if (b.R < 20 || b.cham.some(q => q.biome === 'core' || q.biome === 'claim')) continue; W.contacts = W.contacts.filter(c => c.b !== b); W.picks = W.picks.filter(p => p.home !== b); /* clear the old rock's loot BEFORE the replacement adds its own */ const nb = mkRock(r, b.x, b.y, b.uid, b.R, b.type, { [kind]: true }); nb.va = b.va; W.rocks[W.rocks.indexOf(b)] = nb; have = W.contacts.filter(c => c.kind === kind).length; } };
   need('core', 3); need('claim', 3);
   // three comets, freshly parked, still venting
   for (const dth of [-0.3, 0.7, -0.8]) {
@@ -419,4 +419,32 @@ export function replaceTransfer(old, gen) {
   const r = rng((W.seed ^ (gen * 7717)) >>> 0), th = Math.atan2(old.y0 ?? old.y, old.x0 ?? old.x), rad = old.r0 || Math.hypot(old.x, old.y);
   const b = mkTransfer(r, th, rad, old.transfer.dest, gen);
   return b;
+}
+
+/**
+ * The story needs 3 KERES-9 core shards and the world only seeds 3. If one is lost — sold, left drifting
+ * off into the dark, gone with a wreck — re-seed a sealed core chamber in some uncatalogued rock far from
+ * the player, so the career can never dead-end. Cheap; call it every half minute or so.
+ */
+export function ensureShards() {
+  if (!G || !W || G.cores >= 3) return null;
+  // forget core contacts whose shard is gone — nobody should keep scanning an empty chamber
+  const live = W.picks.filter(p => !p.dead && p.type === 'core');
+  W.contacts = W.contacts.filter(c => c.kind !== 'core' || live.some(p => p.home === c.b || hy(p.x - c.b.x, p.y - c.b.y) < c.b.rad + 15));
+  let have = G.cores + (ev && ev.sack ? ev.sack.core || 0 : 0);
+  for (const s of G.fleet) if (!s.dead && s.cargo) have += s.cargo.core || 0;
+  for (const p of W.picks) if (!p.dead && p.type === 'core' && hy(p.x, p.y) > C.RM + 300) have += p.qty || 1;
+  if (have >= 3) return null;
+  const me = pl || ev, busy = new Set(W.ships.filter(s => s.dock && s.dock.b).map(s => s.dock.b));
+  if (G.crew && G.crew.site) busy.add(G.crew.site);
+  const L = W.rocks.filter(b => !b.dead && !b.orphan && !b.hidden && !b.inbound && !b.kin && !b.cat && b.R >= 20 && !busy.has(b) &&
+    !b.cham.some(q => q.biome === 'core' || q.biome === 'claim') && (!me || hy(b.x - me.x, b.y - me.y) > 700) && Math.abs(hy(b.x, b.y) - C.RS) < C.BAND);
+  if (!L.length) return null;
+  const old = L[Math.floor(Math.random() * L.length)];
+  W.contacts = W.contacts.filter(c => c.b !== old);
+  W.picks = W.picks.filter(p => p.home !== old);   // its own loot only — bounding radii overlap neighbours
+  const nb = mkRock(rng((Math.random() * 1e9) | 0), old.x, old.y, old.uid, old.R, old.type, { core: true });
+  nb.va = old.va; nb.vx = old.vx || 0; nb.vy = old.vy || 0;
+  W.rocks[W.rocks.indexOf(old)] = nb; W.bodies = W.bodies.map(b => (b === old ? nb : b));
+  return nb;
 }
