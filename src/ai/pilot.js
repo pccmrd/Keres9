@@ -618,7 +618,7 @@ function* cutCore(c) {
   say('Cutting a tunnel to the KERES-9 shard inside ' + c.b.name + '.');
   for (let tries = 0; tries < 2 && !got(); tries++) {
     sh = shardOf(c) || sh;
-    // the story tractor reaches 75 m: perch within ~65 m of the shard itself
+    // the story tractor reaches 100 m (laser 95 m): perch within ~65 m of the shard itself
     if (!(yield* perchFor(c, sh, 66))) return false;
     let sT = 9, open = 0;
     for (let t = 0; t < 120 && !got(); t += NAV.dt) {

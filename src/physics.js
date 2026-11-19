@@ -162,9 +162,9 @@ export function stepPicks(dt) {
     let beamed = false, px = pl ? pl.x : 0, py = pl ? pl.y : 0;   // tractor aim point
     if (pl && !pl.dead && !ev && GD[p.type] && GD[p.type].story && (!pl.dock || pl.dock.ty === 'anchor')) {
       const dx = pl.x - p.x, dy = pl.y - p.y, d = hy(dx, dy);
-      if (d < 75 && d > 1) { const h = ray(p.x, p.y, dx / d, dy / d, Math.max(0, d - pl.rad)); beamed = !h || h.b === pl; }
+      if (d < 100 && d > 1) { const h = ray(p.x, p.y, dx / d, dy / d, Math.max(0, d - pl.rad)); beamed = !h || h.b === pl; }
       // …or a clear line down the bore to the laser mount itself (the bore starts there, off the hull centreline)
-      if (!beamed && d < 75) {
+      if (!beamed && d < 100) {
         const m = alive(pl, 'mine')[0];
         if (m) { const o = mw(pl, m), mx = o.x - p.x, my = o.y - p.y, md = hy(mx, my); if (md > 1) { const h = ray(p.x, p.y, mx / md, my / md, Math.max(0, md - 2)); beamed = !h || h.b === pl; if (beamed) { px = o.x; py = o.y; } } }   // reel it straight up the bore, not sideways into the wall
       }
@@ -178,7 +178,7 @@ export function stepPicks(dt) {
     }
     if (pl && !pl.dead && (!pl.dock || pl.dock.ty === 'anchor') && !ev) {
       const d = hy(p.x - pl.x, p.y - pl.y);
-      const tr = GD[p.type] && GD[p.type].story ? 75 : 24;   // story items (core shards) ping the ship's tractor from deep in a tunnel
+      const tr = GD[p.type] && GD[p.type].story ? 100 : 24;   // story items (core shards) ping the ship's tractor from deep in a tunnel
       if (d < tr && cmass(pl) < pl.cargoMax && GD[p.type]) {
         const pd = hy(px - p.x, py - p.y), k = (140 * dt) / Math.max(6, pd);
         p.vx += (px - p.x) * k; p.vy += (py - p.y) * k;
