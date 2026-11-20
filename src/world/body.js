@@ -1,5 +1,5 @@
-// ═══ cellular terrain bodies: rocks, stations, hulks ════════════════════
-import { cl, hy, ad, sh } from '../core/util.js';
+// ═══ cellular terrain bodies: asteroids, comets, stations, settlements ══
+import { cl, hy, sh } from '../core/util.js';
 import { MAT, FLR, C } from '../core/config.js';
 import { W } from '../core/state.js';
 
@@ -7,7 +7,7 @@ export function body(kind, x, y, gw, gh, cs, seed) {
   return {
     kind, x, y, a: 0, vx: 0, vy: 0, va: 0, gw, gh, cs, seed,
     sol: new Uint8Array(gw * gh), flr: new Uint8Array(gw * gh), dmg: new Map(),
-    cut: [], glow: [], fog: [], rooms: [], lights: [], crew: [], ports: [], pads: [], ring: null,
+    cut: [], glow: [], fog: [], rooms: [], lights: [], crew: [], ports: [], pads: [],
     cham: [], veins: [], name: '', rad: (hy(gw, gh) * cs) / 2, roofA: 1, dead: false, breached: false,
   };
 }
@@ -83,38 +83,13 @@ export const bvel = (b, x, y) => ({ x: b.vx - (y - b.y) * b.va, y: b.vy + (x - b
 
 /** world pose & velocity of a docking port / pad */
 export function portW(st, p) {
-  if (p.ring) {
-    const a = st.ring.ang + p.a0 + st.a;
-    return {
-      x: st.x + Math.cos(a) * p.r, y: st.y + Math.sin(a) * p.r, dir: a,
-      vx: st.vx - Math.sin(a) * p.r * st.ring.spin, vy: st.vy + Math.cos(a) * p.r * st.ring.spin, va: st.ring.spin,
-    };
-  }
   const w = cw(st, p.cx, p.cy);
   return { x: w.x, y: w.y, dir: p.dir + st.a, vx: st.vx - (w.y - st.y) * st.va, vy: st.vy + (w.x - st.x) * st.va, va: st.va };
-}
-
-function ringGap(b, ang) {
-  for (let k = 0; k < 4; k++) if (Math.abs(ad(ang, k * Math.PI / 2)) < 0.24) return true;
-  return false;
 }
 
 /** circle-vs-terrain collision with impulse response */
 export function collide(e, rad, hit) {
   for (const b of near(e.x, e.y, rad + 8)) {
-    if (b.ring) {
-      const dx = e.x - b.x, dy = e.y - b.y, d = hy(dx, dy) || 1;
-      if (Math.abs(d - b.ring.r) < rad + 7) {
-        const ang = Math.atan2(dy, dx) - b.a - b.ring.ang;
-        if (!ringGap(b, ang)) {
-          const nx = dx / d, ny = dy / d, sg = d > b.ring.r ? 1 : -1, pen = rad + 7 - Math.abs(d - b.ring.r);
-          e.x += nx * pen * sg; e.y += ny * pen * sg;
-          const v = { x: b.vx - (e.y - b.y) * b.ring.spin, y: b.vy + (e.x - b.x) * b.ring.spin };
-          const vn = ((e.vx - v.x) * nx + (e.vy - v.y) * ny) * sg;
-          if (vn < 0) { e.vx -= nx * vn * 1.3 * sg; e.vy -= ny * vn * 1.3 * sg; hit && hit(-vn, e.x, e.y, b, -1, -1); }
-        }
-      }
-    }
     const c = Math.cos(-b.a), s = Math.sin(-b.a), dx = e.x - b.x, dy = e.y - b.y;
     const lx = dx * c - dy * s + (b.gw * b.cs) / 2, ly = dx * s + dy * c + (b.gh * b.cs) / 2, R = rad + b.cs;
     const x0 = Math.max(0, ((lx - R) / b.cs) | 0), x1 = Math.min(b.gw - 1, ((lx + R) / b.cs) | 0);
@@ -152,45 +127,40 @@ export function ray(x0, y0, dx, dy, range) {
  * Returns the first blocking body or null.
  */
 export function segBlock(x0, y0, x1, y1, w = 0, skip = null) {
+  // returns the body whose terrain the segment meets FIRST (nearest to x0)
   const L = hy(x1 - x0, y1 - y0) || 1, ux = (x1 - x0) / L, uy = (y1 - y0) / L;
+  let best = null, bs = 1e9;
   for (const b of W.bodies) {
     if (b === skip) continue;
     // closest approach of segment to body centre
     const t = cl((b.x - x0) * ux + (b.y - y0) * uy, 0, L), px = x0 + ux * t, py = y0 + uy * t;
     if (hy(b.x - px, b.y - py) > b.rad + w) continue;
-    if (b.ring) {
-      // crossing the ring band outside a gap?
-      const dA = hy(x0 - b.x, y0 - b.y), dB = hy(x1 - b.x, y1 - b.y);
-      if ((dA - b.ring.r) * (dB - b.ring.r) < 0 || Math.abs(hy(b.x - px, b.y - py) - b.ring.r) < w + 7) {
-        for (let s = 0; s <= L; s += 4) {
-          const qx = x0 + ux * s, qy = y0 + uy * s, dd = hy(qx - b.x, qy - b.y);
-          if (Math.abs(dd - b.ring.r) < 7 + w && !ringGap(b, Math.atan2(qy - b.y, qx - b.x) - b.a - b.ring.ang)) return b;
-        }
-      }
-    }
-    const s0 = Math.max(0, t - b.rad - w), s1 = Math.min(L, t + b.rad + w), st = b.cs * 0.8;
-    for (let s = s0; s <= s1; s += st) {
+    const s0 = Math.max(0, t - b.rad - w), s1 = Math.min(L, t + b.rad + w, bs), st = b.cs * 0.8;
+    march: for (let s = s0; s <= s1; s += st) {
       const qx = x0 + ux * s, qy = y0 + uy * s;
-      if (w <= 0) { const c = ca(b, qx, qy); if (c && b.sol[c.i]) return b; continue; }
+      if (w <= 0) { const c = ca(b, qx, qy); if (c && b.sol[c.i]) { best = b; bs = s; break; } continue; }
       for (const o of [-w, 0, w]) {
         const c = ca(b, qx - uy * o, qy + ux * o);
-        if (c && b.sol[c.i]) return b;
+        if (c && b.sol[c.i]) { best = b; bs = s; break march; }
       }
     }
   }
-  return null;
+  return best;
 }
 
-/** integrate free-moving bodies (drifting hulks, spinning stations, habitat rings) */
+/** integrate free-moving bodies (inbound hauls, spinning tumblers, departing transfer ships) */
 export function stepBodies(dt) {
   for (const b of W.bodies) {
-    if (b.ring) b.ring.ang += b.ring.spin * dt;
+    if (b.mover) b.mover(b, dt);
+    if (b.kin) { if (b.contacts) for (const c of b.contacts) { const w = lw(b, c.lx, c.ly); c.x = w.x; c.y = w.y; } continue; }
     if (!b.vx && !b.vy && !b.va) continue;
     b.x += b.vx * dt; b.y += b.vy * dt; b.a += b.va * dt;
-    if (b.kind === 'hulk') {
-      if (b.x < 300 || b.x > C.W - 300) b.vx += (b.x < 300 ? 1 : -1) * 0.4 * dt;
-      if (b.y < 300 || b.y > C.H - 300) b.vy += (b.y < 300 ? 1 : -1) * 0.4 * dt;
-    }
     if (b.contacts) for (const c of b.contacts) { const w = lw(b, c.lx, c.ly); c.x = w.x; c.y = w.y; }
   }
+}
+
+/** is there solid terrain (any body) at a world point? */
+export function solidAt(x, y) {
+  for (const b of near(x, y, 2)) { const c = ca(b, x, y); if (c && b.sol[c.i]) return b; }
+  return null;
 }

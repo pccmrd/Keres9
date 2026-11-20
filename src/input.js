@@ -94,16 +94,14 @@ export function initInput() {
   addEventListener('keydown', e => {
     if (e.repeat) return; IN.keys[e.code] = 1;
     if (['Space', 'Tab', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
-    if (e.code === 'Space') IN.fire('fireB', 1);
-    if (e.code === 'KeyM') IN.fire('mineB', 1);
+    if (e.code === 'Space' || e.code === 'KeyM') IN.fire('mineB', 1);   // Space is a second cutter/laser key (no weapons in 2035)
     if (e.code === 'KeyZ') IN.fire('brake', 1);
     if (e.code === 'Tab') IN.edge.push('target');
     if (KM[e.code]) IN.edge.push(KM[e.code]);
   });
   addEventListener('keyup', e => {
     IN.keys[e.code] = 0;
-    if (e.code === 'Space') IN.fire('fireB', 0);
-    if (e.code === 'KeyM') IN.fire('mineB', 0);
+    if ((e.code === 'Space' && !IN.keys.KeyM) || (e.code === 'KeyM' && !IN.keys.Space)) IN.fire('mineB', 0);
     if (e.code === 'KeyZ') IN.fire('brake', 0);
   });
   addEventListener('contextmenu', e => e.preventDefault());
@@ -123,6 +121,6 @@ export function readHuman(out, dt) {
   if (K.ControlLeft || K.ControlRight) { IN.thr = Math.max(0, IN.thr - dt * 1.2); IN.thrUI(IN.thr); }
   out.lx = cl(IN.lx + kx, -1, 1); out.ly = cl(IN.ly + ky, -1, 1);
   out.rx = cl(IN.rx + kt, -1, 1); out.ry = IN.ry;
-  out.thr = IN.thr; out.fire = !!IN.hold.fireB; out.mine = !!IN.hold.mineB; out.brake = !!IN.hold.brake; out.ai = false;
+  out.thr = IN.thr; out.mine = !!IN.hold.mineB; out.brake = !!IN.hold.brake; out.ai = false;
   return out;
 }

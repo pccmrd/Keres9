@@ -30,7 +30,8 @@ button:disabled{opacity:.32;pointer-events:none}
 .ico{width:32px;height:26px;font-size:13px;flex:none}
 #track{position:absolute;top:calc(46px + var(--sat));left:calc(8px + var(--sal));max-width:215px;background:var(--panel);border-left:2px solid var(--amber);padding:5px 8px;font-size:10px;line-height:1.5;pointer-events:none}
 #track b{color:var(--amber);font-size:9px;letter-spacing:.1em}#track em{color:var(--gold);font-style:normal;font-size:9px}
-#toasts{position:absolute;top:calc(116px + var(--sat));left:calc(8px + var(--sal));display:flex;flex-direction:column;gap:4px;max-width:250px;pointer-events:none}
+#toasts{position:absolute;top:calc(48px + var(--sat));left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;width:min(380px,46vw);pointer-events:none;text-align:center}
+#tObj{display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 .toast{background:var(--panel);border-left:2px solid var(--cyan);padding:4px 8px;font-size:10px;line-height:1.4;animation:tin .25s;transition:opacity .6s}
 .toast.warn{border-color:var(--amber)}.toast.bad{border-color:var(--red)}.toast.good{border-color:var(--green)}.toast.fade{opacity:0}
 @keyframes tin{from{transform:translateX(-14px);opacity:0}}
@@ -72,7 +73,7 @@ button:disabled{opacity:.32;pointer-events:none}
 #ctx.ready{border-color:var(--green);color:var(--green);animation:cp 1.2s infinite}
 @keyframes cp{50%{box-shadow:0 0 22px rgba(109,240,143,.5)}}
 #alt{width:82px;height:28px;font-size:8px;display:none}#alt.on{display:block}
-.row3{display:flex;gap:7px}#fireB{color:#ffb0a8;border-color:#7d3a34}
+.row3{display:flex;gap:7px}
 #scanB.act,#gear.act,#match.act{border-color:var(--cyan);color:var(--cyan)}
 .ov{position:absolute;inset:0;z-index:10;display:none;align-items:center;justify-content:center;background:rgba(3,6,10,.66);pointer-events:auto}
 .ov.on{display:flex}
@@ -130,14 +131,14 @@ button:disabled{opacity:.32;pointer-events:none}
 #confirmO .sheet{width:min(92vw,380px)}#cText{padding:16px;font-size:12px;line-height:1.7;text-align:center}
 #cRow{display:flex;gap:8px;padding:0 14px 14px}#cRow button{flex:1;padding:10px}#cYes{border-color:var(--red);color:#ffb0a8}
 @media (orientation:portrait){#clk{display:none}.bar{width:44px}#mini{width:92px;height:69px}#track{max-width:172px;font-size:9px}
-#toasts{top:calc(124px + var(--sat));max-width:200px}#tgt{top:calc(120px + var(--sat))}#dock,#scan{bottom:calc(316px + var(--sab))}
+#toasts{top:calc(124px + var(--sat));width:60vw;left:auto;right:8px;transform:none;align-items:flex-end}#tgt{top:calc(120px + var(--sat))}#dock,#scan{bottom:calc(316px + var(--sab))}
 .zone{width:136px;height:136px}#zR{right:calc(46px + var(--sar))}.base{width:100px;height:100px;margin:-50px 0 0 -50px}
 #thr{height:130px;top:auto;bottom:calc(170px + var(--sab));transform:none}#clL{bottom:calc(150px + var(--sab));grid-template-columns:repeat(2,48px)}
 #clR{right:calc(52px + var(--sar));bottom:calc(150px + var(--sab))}.sq{width:48px;height:36px}#ctx{width:74px;height:54px}}
 @media (max-height:430px) and (orientation:landscape){.zone{width:124px;height:124px}.base{width:94px;height:94px;margin:-47px 0 0 -47px}
 .thumb{width:38px;height:38px;margin:-19px 0 0 -19px}#clL{bottom:calc(134px + var(--sab));grid-template-columns:repeat(4,46px)}
 #clR{bottom:calc(134px + var(--sab));flex-direction:row;align-items:flex-end}.sq{width:46px;height:34px}#ctx{width:68px;height:48px;font-size:10px}
-#dock,#scan{bottom:calc(8px + var(--sab))}#thr{height:118px}#lore{display:none}#toasts{top:calc(84px + var(--sat))}}
+#dock,#scan{bottom:calc(8px + var(--sab))}#thr{height:118px}#lore{display:none}#toasts{top:calc(40px + var(--sat))}}
 /* ── AI pilot · sector events (v2) ── */
 #aiB{color:var(--dim);font-size:10px;font-weight:700;width:34px}
 #aiB.on{color:#06110a;background:linear-gradient(180deg,var(--green),#2e7d4f);border-color:var(--green);box-shadow:0 0 14px rgba(109,240,143,.45)}

@@ -6,8 +6,9 @@ export const hooks = {
   toast: noop,          // (msg, kind)
   closeStation: noop,   // ()
   onDock: noop,         // (body, type)
-  onKill: noop,         // (victimShip, killerShip|null)
+  onTouch: noop,        // (ship) — came to rest on bare regolith
+  onCatalog: noop,      // (rock)
+  shipLost: noop,       // (ship) — a player-owned hull was destroyed
   playerDied: noop,     // ()
-  rescue: noop,         // (pod pick)
   armor: () => 1,       // () → incoming-damage multiplier for the player (demo director)
 };
